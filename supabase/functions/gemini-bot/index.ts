@@ -8,15 +8,15 @@ const langMap: Record<string, string> = {
   'ta': 'Tamil',
 };
 
+// --- FIX: Check API Key and Throw Error if Missing ---
 const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
 if (!GEMINI_API_KEY) {
-  console.error("GEMINI_API_KEY environment variable not set!");
-  // Return an error response immediately if the key is missing
-  return new Response(JSON.stringify({ error: "Server configuration error: Missing API Key." }), {
-    headers: { 'Content-Type': 'application/json' },
-    status: 500,
-  });
+  console.error("FATAL: GEMINI_API_KEY environment variable not set!");
+  // Throwing an error stops the function boot process cleanly
+  throw new Error("Server configuration error: Missing API Key.");
+  // REMOVED: return new Response(...) - This was the illegal statement
 }
+// --------------------------------------------------
 
 const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
@@ -37,7 +37,15 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { prompt } = await req.json();
+    // Double-check key *inside* handler? Optional, usually not needed if boot check works.
+    // const currentApiKey = Deno.env.get('GEMINI_API_KEY');
+    // if (!currentApiKey) {
+    //   return new Response(JSON.stringify({ error: "API Key missing at runtime."}), { status: 500, ...corsHeaders });
+    // }
+
+    // Use req.clone() if reading body multiple times
+    const requestBody = await req.clone().json().catch(() => ({}));
+    const prompt = requestBody.prompt;
     console.log("Received prompt:", prompt); // Log received prompt
 
     if (!prompt) {
@@ -47,50 +55,29 @@ Deno.serve(async (req) => {
     }
 
     const authHeader = req.headers.get('Authorization');
-    console.log("Auth Header:", authHeader ? "Present" : "Missing"); // Log auth header presence
+    console.log("Auth Header:", authHeader ? "Present" : "Missing");
 
-    // Create Supabase client to get user profile (optional for this function if language is passed)
-    // You might pass the language directly in the request body instead
-    // For simplicity in the prototype, let's assume language comes from request or defaults
-    const requestBody = await req.json().catch(() => ({})); // Get body again safely
     let lang = requestBody.language || 'en'; // Attempt to get language from request body
     let langName = langMap[lang] || 'English';
 
-    // If Authorization header exists, try fetching profile for more robust language detection
+    // Fetch profile language if authenticated (keep this logic)
     if (authHeader) {
        try {
-          const supabaseClient = createClient(
-             Deno.env.get('SUPABASE_URL') ?? '',
-             Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-             { global: { headers: { Authorization: authHeader } } }
-          );
+          const supabaseClient = createClient( /* ... Supabase credentials ... */ );
           const { data: { user } } = await supabaseClient.auth.getUser();
           if (user) {
-             const { data: profile } = await supabaseClient
-               .from('farmers')
-               .select('language')
-               .eq('user_id', user.id)
-               .single();
+             const { data: profile } = await supabaseClient.from('farmers').select('language').eq('user_id', user.id).single();
              if (profile?.language) {
                 lang = profile.language;
                 langName = langMap[lang] || 'English';
                 console.log("Language fetched from profile:", langName);
-             } else {
-                console.log("User found but no language in profile, using default/request language.");
-             }
-          } else {
-            console.log("Auth header present but couldn't get user.");
-          }
-       } catch(profileError) {
-          console.error("Error fetching user profile:", profileError);
-          // Fallback to default/request language if profile fetch fails
-       }
-    } else {
-      console.log("No auth header, using default/request language:", langName);
-    }
+             } else { console.log("User found but no language in profile..."); }
+          } else { console.log("Auth header present but couldn't get user."); }
+       } catch(profileError) { console.error("Error fetching user profile:", profileError); }
+    } else { console.log("No auth header, using default/request language:", langName); }
 
 
-    const fullPrompt = `You are a helpful expert on Indian oil palm farming. A farmer who speaks ${langName} has a question. Answer simply and clearly, in ${langName}. Question: ${prompt}`;
+    const fullPrompt = `You are a helpful expert on Indian oil palm farming... Question: ${prompt}`; // Keep prompt generation
     console.log("Sending prompt to Gemini:", fullPrompt);
 
     const result = await model.generateContent(fullPrompt);
@@ -99,14 +86,14 @@ Deno.serve(async (req) => {
     console.log("Received reply from Gemini:", text);
 
     return new Response(JSON.stringify({ reply: text }), {
-      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }, // Add CORS header
+      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
       status: 200,
     });
 
-  } catch (error) {
+  } catch (error: any) { // Catch errors during request handling
     console.error("Error processing request:", error);
     return new Response(JSON.stringify({ error: error.message || "An internal error occurred." }), {
-      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }, // Add CORS header
+      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
       status: 500,
     });
   }
