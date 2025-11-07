@@ -11,10 +11,9 @@ import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabaseClient';
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
-import { Switch } from "@/components/ui/switch"; // Import Switch
-import { Label } from "@/components/ui/label"; // Import Label
+import { Switch } from "@/components/ui/switch"; 
+import { Label } from "@/components/ui/label"; 
 
-// ... (keep modules array)
 const modules = [
   {
     id: "community", icon: Users, label: "Community", description: "Success Stories",
@@ -42,7 +41,6 @@ const modules = [
   },
 ];
 
-// ... (keep LinkedInvestor interface)
 interface LinkedInvestor {
   investors: {
     offer_percent: number;
@@ -63,18 +61,14 @@ const Dashboard = () => {
       availableStake: 0,
       currentMarketValue: 0,
       predictedMarketValue: 0,
-      // --- MODIFIED STATS ---
-      experienceYears: null as number | null, // Kept for potential other uses
+      experienceYears: null as number | null, 
       cultivationStatus: null as string | null,
-      daysToHarvest: null as number | null, // <-- ADDED
-      // --------------------
+      daysToHarvest: null as number | null, 
   });
   const [loadingStats, setLoadingStats] = useState(true);
   
-  // --- NEW STATE for the toggle ---
   const [isSeeking, setIsSeeking] = useState(false);
   const [isToggleLoading, setIsToggleLoading] = useState(false);
-  // ---------------------------------
 
   useEffect(() => {
     if (profile) {
@@ -86,12 +80,11 @@ const Dashboard = () => {
         .select(`investors ( offer_percent, amount )`)
         .eq('farmer_id', profile.id);
 
-      // --- Query remains the same, we have planting_date and status ---
       const getCultivationData = supabase
         .from('cultivation')
         .select('planting_date, status')
         .eq('farmer_id', profile.id)
-        .order('planting_date', { ascending: true }) // Get the *earliest* planting date
+        .order('planting_date', { ascending: true }) 
         .limit(1)
         .single();
         
@@ -107,7 +100,7 @@ const Dashboard = () => {
       Promise.all([getInvestorStats, getCultivationData, getSeekingStatus])
         .then(([investorResult, cultivationResult, seekingResult]) => {
           
-          let investorStats = { /* ... (keep existing calculation logic) */ 
+          let investorStats = { 
               totalStakeAllocated: 0,
               totalMoneyReceived: 0,
               totalLandAllocated: 0,
@@ -131,42 +124,36 @@ const Dashboard = () => {
               console.error("Error fetching links:", investorResult.error);
           }
 
-          // --- MODIFIED CULTIVATION STATS ---
           let cultivationStats = {
               experienceYears: null as number | null,
               cultivationStatus: null as string | null,
-              daysToHarvest: null as number | null, // <-- ADDED
+              daysToHarvest: null as number | null, 
           };
           if (!cultivationResult.error && cultivationResult.data) {
               const plantDate = new Date(cultivationResult.data.planting_date);
               const today = new Date();
               const diffTime = today.getTime() - plantDate.getTime();
-              // Calculate experience in years
               const diffYears = parseFloat((diffTime / (1000 * 60 * 60 * 24 * 365.25)).toFixed(1));
               
               const status = cultivationResult.data.status || "Gestation";
               let daysToHarvest: number | null = null;
 
-              // Calculate days to first harvest if in Gestation
               if (status === 'Gestation' && cultivationResult.data.planting_date) {
                   const gestationPeriodDays = 3.5 * 365.25; // ~1278 days
                   const firstHarvestDate = new Date(plantDate.getTime() + gestationPeriodDays * 24 * 60 * 60 * 1000);
                   const timeToHarvest = firstHarvestDate.getTime() - today.getTime();
-                  // Get the ceiling (round up) and ensure it's not negative
                   daysToHarvest = Math.max(0, Math.ceil(timeToHarvest / (1000 * 60 * 60 * 24)));
               }
 
               cultivationStats = {
                   experienceYears: diffYears > 0 ? diffYears : 0,
                   cultivationStatus: status,
-                  daysToHarvest: daysToHarvest, // <-- SET
+                  daysToHarvest: daysToHarvest, 
               };
           } else if (cultivationResult.error && cultivationResult.error.code !== 'PGRST116') {
-              // Ignore 'PGRST116' (No rows found)
               toast.error("Could not load cultivation data.");
               console.error("Error fetching cultivation:", cultivationResult.error);
           }
-          // ---------------------------------
           
           if (!seekingResult.error && seekingResult.data) {
               setIsSeeking(seekingResult.data.is_seeking_investment);
@@ -180,7 +167,7 @@ const Dashboard = () => {
           setStats({
               totalLand: totalLand,
               ...investorStats,
-              ...cultivationStats, // <-- Pass new stats
+              ...cultivationStats, 
               ...marketStats,
           });
           
@@ -195,7 +182,6 @@ const Dashboard = () => {
     navigate('/');
   };
 
-  // --- (keep handleSeekingToggle) ---
   const handleSeekingToggle = async (checked: boolean) => {
       if (!profile) return;
       
@@ -214,7 +200,6 @@ const Dashboard = () => {
       }
       setIsToggleLoading(false);
   };
-  // ---------------------------------
 
   if (authLoading || !profile) {
     return (
@@ -232,12 +217,11 @@ const Dashboard = () => {
 
   return (
     <div className="min-h-screen bg-gradient-subtle pb-6">
-      {/* --- Farmer Stats Card --- */}
+      {/* --- Farmer Stats Card (Green Banner) --- */}
       <div className="bg-gradient-primary rounded-b-[24px] shadow-strong pt-6 pb-8 px-4 sm:px-6 relative z-10">
         <div className="container mx-auto max-w-4xl text-primary-foreground space-y-4">
           {/* Header Row with Logout */}
           <div className="flex items-center justify-between">
-             {/* ... (keep Avatar, Welcome text) ... */}
              <div className="flex items-center gap-3">
               <Avatar className="w-12 h-12 border-2 border-primary-foreground/50">
                 <AvatarFallback className="bg-white/20 text-xl">
@@ -293,11 +277,10 @@ const Dashboard = () => {
                     <p className="text-lg sm:text-2xl font-bold leading-tight">{formatCurrency(stats.totalMoneyReceived)}</p>
                   </Card>
                   
-                  {/* --- MODIFIED CULTIVATION CARD --- */}
+                  {/* Harvest Status Card */}
                   <Card className="bg-white/10 p-3 sm:p-4 rounded-lg">
                     <div className="flex items-center gap-1.5 mb-1"><CalendarDays className="w-4 h-4 opacity-80" /><p className="text-xs opacity-80 font-medium">Harvest Status</p></div>
                     
-                    {/* Logic to show days or status */}
                     {stats.cultivationStatus === 'Gestation' && stats.daysToHarvest !== null && stats.daysToHarvest > 0 ? (
                         <>
                             <p className="text-xl sm:text-2xl font-bold leading-tight">
@@ -318,7 +301,6 @@ const Dashboard = () => {
                         </>
                     )}
                   </Card>
-                  {/* ---------------------------------- */}
 
                   {/* Market Value */}
                   <Card className="bg-white/10 p-3 sm:p-4 rounded-lg">
@@ -333,9 +315,13 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* --- Module Grid & NEW Toggle --- */}
-      <div className="container mx-auto max-w-4xl -mt-8 relative z-20 px-4 sm:px-0">
-         {/* --- (keep toggle switch) --- */}
+      {/* --- Module Grid & Toggle (NO OVERLAP) --- */}
+      {/* MODIFICATION:
+        - Removed "-mt-8", "relative", and "z-20"
+        - Added "mt-6" to create space *below* the green banner
+      */}
+      <div className="container mx-auto max-w-4xl mt-6 px-4 sm:px-0">
+         {/* --- Toggle Switch --- */}
          <Card className="p-4 sm:p-6 shadow-medium bg-card mb-4 flex flex-col sm:flex-row items-center justify-between gap-3 rounded-2xl">
              <div className="flex items-center gap-3">
                  <Eye className="w-6 h-6 text-primary" />
@@ -351,8 +337,8 @@ const Dashboard = () => {
                 disabled={isToggleLoading}
              />
          </Card>
-         {/* ------------------------- */}
          
+        {/* --- Module Grid --- */}
         <div className="grid grid-cols-2 gap-4 sm:gap-6">
           {modules.map((module) => (
             <Card
