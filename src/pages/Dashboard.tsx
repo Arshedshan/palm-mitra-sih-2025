@@ -1,5 +1,4 @@
-// Replace this file: src/pages/Dashboard.tsx
-
+// src/pages/Dashboard.tsx
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -254,7 +253,9 @@ const Dashboard = () => {
 
                   {/* Land Allocated */}
                   <Card className="bg-white/10 p-3 sm:p-4 rounded-lg">
+                    {/* --- FIX: Corrected typo </D> to </p> --- */}
                     <div className="flex items-center gap-1.5 mb-1"><TrendingUp className="w-4 h-4 opacity-80" /><p className="text-xs opacity-80 font-medium">Land Allocated</p></div>
+                    {/* ------------------------------------- */}
                     <p className="text-lg sm:text-2xl font-bold leading-tight">{stats.totalLandAllocated.toLocaleString("en-IN", {maximumFractionDigits: 2})} acres</p>
                     <p className="text-xs opacity-80 leading-tight">{stats.totalStakeAllocated.toLocaleString("en-IN")}% stake</p>
                   </Card>

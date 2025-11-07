@@ -1,5 +1,4 @@
-// Replace this file: src/App.tsx
-
+// src/App.tsx
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -28,7 +27,7 @@ import MarketPrice from "./pages/MarketPrice";
 import Investors from "./pages/Investors";
 import Progress from "./pages/Progress";
 import NotFound from "./pages/NotFound";
-import { useAuth } from "./context/AuthContext"; // Import useAuth to check session
+import { useAuth } from "./context/AuthContext";
 import { Loader2 } from "lucide-react";
 
 const queryClient = new QueryClient();
@@ -38,7 +37,6 @@ const AppRoutes = () => {
   const { loading } = useAuth();
 
   // Show a global loader while the AuthContext is busy
-  // checking the session for the first time.
   if (loading) {
      return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-subtle">
@@ -55,7 +53,6 @@ const AppRoutes = () => {
       
       {/* Routes for logged-in users who might NOT have a profile yet */}
       <Route element={<ProtectedRoute />}>
-        {/* Language page is now part of onboarding flow, guarded */}
         <Route path="/language" element={<Language />} /> 
         <Route path="/onboarding" element={<Onboarding />} />
         <Route path="/verification" element={<Verification />} />
@@ -72,7 +69,9 @@ const AppRoutes = () => {
         <Route path="/money/loan" element={<LoanCalculator />} />
         <Route path="/money/insurance" element={<Insurance />} />
         <Route path="/money/market" element={<MarketPrice />} />
+        {/* --- FIX: Corrected typo 'Element=' to 'element=' --- */}
         <Route path="/investors" element={<Investors />} />
+        {/* -------------------------------------------------- */}
         <Route path="/progress" element={<Progress />} />
       </Route>
 

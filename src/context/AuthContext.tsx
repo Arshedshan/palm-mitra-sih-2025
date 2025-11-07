@@ -1,3 +1,4 @@
+// src/context/AuthContext.tsx
 import { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import type { Session, User } from '@supabase/supabase-js';
@@ -12,7 +13,7 @@ export interface FarmerProfile {
   created_at: string;
   language: string;
   gps_coords: { latitude: number; longitude: number; } | null;
-  // Add other fields like avatar_url if you have them
+  // Add avatar_url if you implement it
 }
 
 interface AuthContextType {
@@ -21,7 +22,6 @@ interface AuthContextType {
   profile: FarmerProfile | null;
   loading: boolean;
   logout: () => Promise<void>;
-  // --- ADD THIS LINE ---
   // Expose setProfile to be called manually from Onboarding
   setProfile: (profile: FarmerProfile | null) => void;
 }
@@ -68,9 +68,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   // 3. Fetch farmer profile when user changes
   useEffect(() => {
-    // Only fetch if we have a user but don't have their profile yet
-    // or if the user changed and the profile doesn't match
-    if (user && (!profile || profile.user_id !== user.id) && !loading) {
+    // --- THIS LOGIC IS CORRECTED ---
+    // Only fetch if we have a user
+    if (user) {
       setLoading(true); // Start loading profile data
       supabase
         .from('farmers')
@@ -85,17 +85,19 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             // Sync localStorage (optional, but good for consistency)
             localStorage.setItem("farmerProfile", JSON.stringify(data));
             localStorage.setItem("farmerId", data.id);
+          } else {
+            // No data and no error means profile is null (new user)
+            setProfile(null);
           }
-          // If no data and no error, profile is just null (new user needs onboarding)
           setLoading(false); // Profile fetch done
         });
-    } else if (!user) {
-      // Clear profile if user is logged out
+    } else {
+      // No user, so clear profile and stop loading
       setProfile(null);
-      localStorage.removeItem("farmerProfile");
-      localStorage.removeItem("farmerId");
+      setLoading(false);
     }
-  }, [user, profile, loading]); // Rerun when user, profile, or loading changes
+  }, [user]); // <-- Dependency array is changed to ONLY 'user'
+  // --- END OF FIX ---
 
   const logout = async () => {
     await supabase.auth.signOut();
@@ -106,9 +108,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     session,
     user,
     profile,
-    loading: loading,
+    loading, // This now correctly reflects both auth and profile loading
     logout,
-    // --- ADD THIS LINE ---
     setProfile, // Pass the setter function
   };
 

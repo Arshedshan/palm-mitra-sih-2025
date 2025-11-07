@@ -1,5 +1,4 @@
-// Replace this file: src/pages/Progress.tsx
-
+// src/pages/Progress.tsx
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
@@ -67,8 +66,7 @@ const Progress = () => {
                  const { data, error } = await supabase
                     .from('posts')
                     .select('*')
-                    // Filter by the farmer's profile ID (PK of farmers table)
-                    .eq('farmer_id', profile.id) 
+                    .eq('farmer_id', profile.id) // <-- Filter by farmer's profile ID
                     .order('created_at', { ascending: false });
 
                  if (error) {
@@ -86,6 +84,7 @@ const Progress = () => {
             };
             fetchMyPosts();
         } else if (!authLoading && !profile) {
+            // This page is protected, so this shouldn't be hit, but good for safety
             toast.error("Profile not loaded. Redirecting...");
             navigate('/onboarding');
         }
@@ -110,7 +109,7 @@ const Progress = () => {
         const { data, error } = await supabase
             .from('posts')
             .insert(newPostData)
-            .select()
+            .select('*') // <-- FIX: Use select('*')
             .single();
 
         if (error) {
@@ -118,7 +117,7 @@ const Progress = () => {
             toast.error("Failed to create post. Please try again.");
         } else if (data) {
             // Add the new post to the *top* of the displayed list
-            const formattedNewPost = { ...data, time: formatRelativeTime(data.created_at) };
+            const formattedNewPost: Post = { ...data, time: formatRelativeTime(data.created_at) };
             setMyPosts(prevPosts => [formattedNewPost, ...prevPosts]); // Prepend new post
             setNewPostContent(""); // Clear input
             toast.success("Progress update posted successfully!");
