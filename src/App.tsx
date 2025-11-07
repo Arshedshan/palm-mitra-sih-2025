@@ -1,24 +1,27 @@
-// src/App.tsx
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { useAuth } from "./context/AuthContext";
+import { Loader2 } from "lucide-react";
 
-// --- Import New Auth/Route Components ---
+// --- Import ALL Pages ---
+// Farmer Auth
 import Login from "./pages/Login";
 import Register from "./pages/Register";
+// Investor Auth
+import InvestorLogin from "./pages/InvestorLogin"; // --- ADDED ---
+// Protected Route Guards
 import { ProtectedRoute, ProfileRequiredRoute } from "./components/ProtectedRoute";
-// ------------------------------------
-
-// Import other pages
+// Farmer Pages
 import Language from "./pages/Language";
 import Onboarding from "./pages/Onboarding";
 import Verification from "./pages/Verification";
 import Dashboard from "./pages/Dashboard";
 import Chatbot from "./pages/Chatbot";
 import Learn from "./pages/Learn";
-import Community from "./pages/Community"; // <-- FIX: Corrected path
+import Community from "./pages/Community";
 import Money from "./pages/Money";
 import SubsidyCalculator from "./pages/SubsidyCalculator";
 import LoanCalculator from "./pages/LoanCalculator";
@@ -26,17 +29,18 @@ import Insurance from "./pages/Insurance";
 import MarketPrice from "./pages/MarketPrice";
 import Investors from "./pages/Investors";
 import Progress from "./pages/Progress";
+// Investor Pages
+import InvestorMarketplace from "./pages/InvestorMarketplace"; // --- ADDED ---
+import FarmerPublicProfile from "./pages/FarmerPublicProfile"; // --- ADDED ---
+// General
 import NotFound from "./pages/NotFound";
-import { useAuth } from "./context/AuthContext";
-import { Loader2 } from "lucide-react";
+
 
 const queryClient = new QueryClient();
 
-// Create a component to handle loading state
 const AppRoutes = () => {
   const { loading } = useAuth();
 
-  // Show a global loader while the AuthContext is busy
   if (loading) {
      return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-subtle">
@@ -47,18 +51,21 @@ const AppRoutes = () => {
 
   return (
     <Routes>
-      {/* Public Routes: Login and Register are accessible to everyone */}
+      {/* Public Farmer Routes */}
       <Route path="/" element={<Login />} />
       <Route path="/register" element={<Register />} />
       
-      {/* Routes for logged-in users who might NOT have a profile yet */}
+      {/* --- NEW: Public Investor Routes --- */}
+      <Route path="/investor-login" element={<InvestorLogin />} />
+      
+      {/* Routes for logged-in FARMERS who might NOT have a profile yet */}
       <Route element={<ProtectedRoute />}>
         <Route path="/language" element={<Language />} /> 
         <Route path="/onboarding" element={<Onboarding />} />
         <Route path="/verification" element={<Verification />} />
       </Route>
       
-      {/* Routes that require a user to be logged in AND have a farmer profile */}
+      {/* Routes that require a FARMER to be logged in AND have a profile */}
       <Route element={<ProfileRequiredRoute />}>
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/chatbot" element={<Chatbot />} />
@@ -69,11 +76,14 @@ const AppRoutes = () => {
         <Route path="/money/loan" element={<LoanCalculator />} />
         <Route path="/money/insurance" element={<Insurance />} />
         <Route path="/money/market" element={<MarketPrice />} />
-        {/* --- FIX: Corrected typo 'Element=' to 'element=' --- */}
         <Route path="/investors" element={<Investors />} />
-        {/* -------------------------------------------------- */}
         <Route path="/progress" element={<Progress />} />
       </Route>
+      
+      {/* --- NEW: Investor-facing Routes --- */}
+      {/* For the prototype, these are "mock" protected inside the components */}
+      <Route path="/investor-marketplace" element={<InvestorMarketplace />} />
+      <Route path="/farmer/:farmerId" element={<FarmerPublicProfile />} />
 
       {/* Catch-all Not Found Route */}
       <Route path="*" element={<NotFound />} />
@@ -87,7 +97,7 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <AppRoutes /> {/* Use the new AppRoutes component */}
+        <AppRoutes />
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

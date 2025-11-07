@@ -5,14 +5,16 @@ import { Card } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
   Users, BookOpen, DollarSign, MessageCircle, TrendingUp, Award,
-  MapPin, Sprout, CheckCircle2, User, Loader2, LogOut, CalendarDays
+  MapPin, Sprout, CheckCircle2, User, Loader2, LogOut, CalendarDays, Eye, BarChart
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabaseClient';
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
+import { Switch } from "@/components/ui/switch"; // Import Switch
+import { Label } from "@/components/ui/label"; // Import Label
 
-// Define module structure with specific colors and bg colors for the icons
+// ... (keep modules array)
 const modules = [
   {
     id: "community", icon: Users, label: "Community", description: "Success Stories",
@@ -40,25 +42,18 @@ const modules = [
   },
 ];
 
-// Interface for Linked Investor data (simplified)
+// ... (keep LinkedInvestor interface)
 interface LinkedInvestor {
   investors: {
     offer_percent: number;
     amount: number;
-  } | null; // Handle potential null join
-}
-// Interface for Cultivation data
-interface Cultivation {
-    planting_date: string;
-    status: string;
+  } | null;
 }
 
 const Dashboard = () => {
   const navigate = useNavigate();
-  // Get profile, auth loading status, and logout function from AuthContext
   const { profile, loading: authLoading, logout } = useAuth();
   
-  // State for all farmer's stats
   const [stats, setStats] = useState({
       totalLand: 0,
       totalStakeAllocated: 0,
@@ -68,63 +63,60 @@ const Dashboard = () => {
       availableStake: 0,
       currentMarketValue: 0,
       predictedMarketValue: 0,
-      plantingDate: null as string | null,
+      // --- MODIFIED STATS ---
+      experienceYears: null as number | null,
       cultivationStatus: null as string | null,
-      daysToHarvest: null as number | null,
+      // --------------------
   });
   const [loadingStats, setLoadingStats] = useState(true);
+  
+  // --- NEW STATE for the toggle ---
+  const [isSeeking, setIsSeeking] = useState(false);
+  const [isToggleLoading, setIsToggleLoading] = useState(false);
+  // ---------------------------------
 
-  // --- Effect to Fetch All Farmer Stats ---
   useEffect(() => {
-    // Only run if the profile is loaded
     if (profile) {
       setLoadingStats(true);
       const totalLand = profile.land_size || 0;
-
-      // --- Create promises for all data fetching ---
       
-      // 1. Fetch linked investor data
       const getInvestorStats = supabase
         .from('farmer_investor_links')
         .select(`investors ( offer_percent, amount )`)
-        .eq('farmer_id', profile.id); // Use the farmer profile's primary key (id)
+        .eq('farmer_id', profile.id);
 
-      // 2. Fetch cultivation data
       const getCultivationData = supabase
         .from('cultivation')
         .select('planting_date, status')
         .eq('farmer_id', profile.id)
-        .order('planting_date', { ascending: false }) // Get the latest planting
+        .order('planting_date', { ascending: true }) // Get the *earliest* planting date for experience
         .limit(1)
         .single();
         
-      // 3. Fetch Market Price Data (simulated)
-      // This logic is from MarketPrice.tsx
-      const getCurrentValue = () => totalLand * 150000; // Current value per acre
-      const getFutureValue = () => totalLand * 400000; // Projected 5-year value
+      const getSeekingStatus = supabase
+        .from('farmers')
+        .select('is_seeking_investment')
+        .eq('id', profile.id)
+        .single();
+        
+      const getCurrentValue = () => totalLand * 150000;
+      const getFutureValue = () => totalLand * 400000;
       
-      // --- Run all promises concurrently ---
-      Promise.all([getInvestorStats, getCultivationData])
-        .then(([investorResult, cultivationResult]) => {
+      Promise.all([getInvestorStats, getCultivationData, getSeekingStatus])
+        .then(([investorResult, cultivationResult, seekingResult]) => {
           
-          let investorStats = {
+          let investorStats = { /* ... (keep existing calculation logic) */ 
               totalStakeAllocated: 0,
               totalMoneyReceived: 0,
               totalLandAllocated: 0,
               remainingLand: totalLand,
               availableStake: 100,
           };
-
-          // Process investor data
-          if (investorResult.error) {
-             toast.error("Could not load investor stats.");
-             console.error("Error fetching links:", investorResult.error);
-          } else if (investorResult.data) {
+          if (!investorResult.error && investorResult.data) {
               const typedData = investorResult.data as unknown as LinkedInvestor[];
               const totalStake = typedData.reduce((sum, link) => sum + (link.investors?.offer_percent || 0), 0);
               const totalMoney = typedData.reduce((sum, link) => sum + (link.investors?.amount || 0), 0);
               const landAllocated = Math.min(totalLand, (totalLand * totalStake) / 100);
-              
               investorStats = {
                   totalStakeAllocated: totalStake,
                   totalMoneyReceived: totalMoney,
@@ -132,40 +124,42 @@ const Dashboard = () => {
                   remainingLand: Math.max(0, totalLand - landAllocated),
                   availableStake: Math.max(0, 100 - totalStake),
               };
+          } else if (investorResult.error) {
+              toast.error("Could not load investor stats.");
+              console.error("Error fetching links:", investorResult.error);
           }
 
-          // Process cultivation data
+          // --- MODIFIED CULTIVATION STATS ---
           let cultivationStats = {
-              plantingDate: null as string | null,
+              experienceYears: null as number | null,
               cultivationStatus: null as string | null,
-              daysToHarvest: null as number | null,
           };
-
-          if (cultivationResult.error && cultivationResult.error.code !== 'PGRST116') { // Ignore "no rows" error
-              toast.error("Could not load cultivation data.");
-              console.error("Error fetching cultivation:", cultivationResult.error);
-          } else if (cultivationResult.data) {
+          if (!cultivationResult.error && cultivationResult.data) {
               const plantDate = new Date(cultivationResult.data.planting_date);
-              // Calculate days until first harvest (approx 4 years)
-              const harvestDate = new Date(plantDate.getFullYear() + 4, plantDate.getMonth(), plantDate.getDate());
               const today = new Date();
-              const diffTime = harvestDate.getTime() - today.getTime();
-              const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+              const diffTime = today.getTime() - plantDate.getTime();
+              // Calculate experience in years
+              const diffYears = parseFloat((diffTime / (1000 * 60 * 60 * 24 * 365.25)).toFixed(1));
               
               cultivationStats = {
-                  plantingDate: cultivationResult.data.planting_date,
+                  experienceYears: diffYears > 0 ? diffYears : 0,
                   cultivationStatus: cultivationResult.data.status || "Gestation",
-                  daysToHarvest: diffDays > 0 ? diffDays : 0, // Show 0 if past due
               };
+          } else if (cultivationResult.error && cultivationResult.error.code !== 'PGRST116') {
+              toast.error("Could not load cultivation data.");
+              console.error("Error fetching cultivation:", cultivationResult.error);
+          }
+          // ---------------------------------
+          
+          if (!seekingResult.error && seekingResult.data) {
+              setIsSeeking(seekingResult.data.is_seeking_investment);
           }
 
-          // Process market data
           const marketStats = {
               currentMarketValue: getCurrentValue(),
               predictedMarketValue: getFutureValue(),
           };
 
-          // Combine all stats and set state
           setStats({
               totalLand: totalLand,
               ...investorStats,
@@ -176,15 +170,35 @@ const Dashboard = () => {
           setLoadingStats(false);
         });
     }
-  }, [profile]); // Re-run whenever the profile loads
+  }, [profile]);
 
   const handleLogout = async () => {
     toast.info("Logging out...");
     await logout();
-    navigate('/'); // Redirect to login page
+    navigate('/');
   };
 
-  // Show main loader
+  // --- NEW FUNCTION for the toggle ---
+  const handleSeekingToggle = async (checked: boolean) => {
+      if (!profile) return;
+      
+      setIsToggleLoading(true);
+      const { error } = await supabase
+        .from('farmers')
+        .update({ is_seeking_investment: checked })
+        .eq('id', profile.id);
+        
+      if (error) {
+          toast.error("Failed to update status. Please try again.");
+          setIsSeeking(!checked); // Revert UI
+      } else {
+          toast.success(checked ? "Your profile is now visible to investors!" : "Your profile is now hidden from investors.");
+          setIsSeeking(checked);
+      }
+      setIsToggleLoading(false);
+  };
+  // ---------------------------------
+
   if (authLoading || !profile) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-subtle">
@@ -196,22 +210,21 @@ const Dashboard = () => {
   const farmerName = profile.name?.split(" ")[0] || "Farmer";
   const formatCurrency = (amount: number | null) => {
     if (amount === null || amount === undefined) return "N/A";
-    // Use compact notation for large numbers
     return `₹${new Intl.NumberFormat('en-IN', { notation: 'compact', maximumFractionDigits: 1 }).format(amount)}`;
   };
 
   return (
     <div className="min-h-screen bg-gradient-subtle pb-6">
-      {/* --- New Farmer Stats Card --- */}
+      {/* --- Farmer Stats Card --- */}
       <div className="bg-gradient-primary rounded-b-[24px] shadow-strong pt-6 pb-8 px-4 sm:px-6 relative z-10">
         <div className="container mx-auto max-w-4xl text-primary-foreground space-y-4">
           {/* Header Row with Logout */}
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
+             {/* ... (keep Avatar, Welcome text) ... */}
+             <div className="flex items-center gap-3">
               <Avatar className="w-12 h-12 border-2 border-primary-foreground/50">
                 <AvatarFallback className="bg-white/20 text-xl">
                   <User className="w-6 h-6" />
-                  {/* Or: {profile.name?.charAt(0).toUpperCase()} */}
                 </AvatarFallback>
               </Avatar>
               <div>
@@ -223,7 +236,6 @@ const Dashboard = () => {
               <LogOut className="w-5 h-5" />
             </Button>
           </div>
-
           {/* Verified Badge */}
           <div className="bg-white/20 backdrop-blur-sm px-4 py-2 rounded-xl inline-flex items-center gap-2 text-sm font-medium">
             <CheckCircle2 className="w-4 h-4 text-primary-foreground flex-shrink-0" />
@@ -233,7 +245,7 @@ const Dashboard = () => {
           {/* Stats Grid */}
           <div className="pt-4">
             {loadingStats ? (
-                <div className="flex justify-center items-center h-[216px]"> {/* Match grid height */}
+                <div className="flex justify-center items-center h-[216px]">
                     <Loader2 className="w-8 h-8 animate-spin text-primary-foreground" />
                 </div>
             ) : (
@@ -253,9 +265,7 @@ const Dashboard = () => {
 
                   {/* Land Allocated */}
                   <Card className="bg-white/10 p-3 sm:p-4 rounded-lg">
-                    {/* --- FIX: Corrected typo </D> to </p> --- */}
                     <div className="flex items-center gap-1.5 mb-1"><TrendingUp className="w-4 h-4 opacity-80" /><p className="text-xs opacity-80 font-medium">Land Allocated</p></div>
-                    {/* ------------------------------------- */}
                     <p className="text-lg sm:text-2xl font-bold leading-tight">{stats.totalLandAllocated.toLocaleString("en-IN", {maximumFractionDigits: 2})} acres</p>
                     <p className="text-xs opacity-80 leading-tight">{stats.totalStakeAllocated.toLocaleString("en-IN")}% stake</p>
                   </Card>
@@ -266,14 +276,17 @@ const Dashboard = () => {
                     <p className="text-lg sm:text-2xl font-bold leading-tight">{formatCurrency(stats.totalMoneyReceived)}</p>
                   </Card>
                   
-                  {/* Cultivation Status */}
+                  {/* --- MODIFIED CULTIVATION CARD --- */}
                   <Card className="bg-white/10 p-3 sm:p-4 rounded-lg">
-                    <div className="flex items-center gap-1.5 mb-1"><CalendarDays className="w-4 h-4 opacity-80" /><p className="text-xs opacity-80 font-medium">Cultivation Status</p></div>
-                    <p className="text-xl sm:text-2xl font-bold leading-tight">{stats.cultivationStatus || 'N/A'}</p>
+                    <div className="flex items-center gap-1.5 mb-1"><BarChart className="w-4 h-4 opacity-80" /><p className="text-xs opacity-80 font-medium">Experience</p></div>
+                    <p className="text-xl sm:text-2xl font-bold leading-tight">
+                        {stats.experienceYears !== null ? `${stats.experienceYears} years` : 'N/A'}
+                    </p>
                     <p className="text-xs opacity-80 leading-tight">
-                        {stats.daysToHarvest !== null ? (stats.daysToHarvest > 0 ? `${stats.daysToHarvest} days to harvest` : "Ready to harvest!") : "No planting date set"}
+                        Status: {stats.cultivationStatus || 'N/A'}
                     </p>
                   </Card>
+                  {/* ---------------------------------- */}
 
                   {/* Market Value */}
                   <Card className="bg-white/10 p-3 sm:p-4 rounded-lg">
@@ -288,13 +301,31 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* --- Existing 6-Icon Module Grid --- */}
+      {/* --- Module Grid & NEW Toggle --- */}
       <div className="container mx-auto max-w-4xl -mt-8 relative z-20 px-4 sm:px-0">
+         {/* --- NEW TOGGLE SWITCH --- */}
+         <Card className="p-4 sm:p-6 shadow-medium bg-card mb-4 flex flex-col sm:flex-row items-center justify-between gap-3 rounded-2xl">
+             <div className="flex items-center gap-3">
+                 <Eye className="w-6 h-6 text-primary" />
+                 <div>
+                     <Label htmlFor="seeking-toggle" className="text-base font-semibold">Seek Investment</Label>
+                     <p className="text-sm text-muted-foreground">Make your profile visible to investors in the Farmer Marketplace.</p>
+                 </div>
+             </div>
+             <Switch
+                id="seeking-toggle"
+                checked={isSeeking}
+                onCheckedChange={handleSeekingToggle}
+                disabled={isToggleLoading}
+             />
+         </Card>
+         {/* ------------------------- */}
+         
         <div className="grid grid-cols-2 gap-4 sm:gap-6">
           {modules.map((module) => (
             <Card
               key={module.id}
-              className="p-4 sm:p-6 text-center flex flex-col items-center justify-start group cursor-pointer hover:shadow-lg focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 transition-shadow duration-200 bg-card"
+              className="p-4 sm:p-6 text-center flex flex-col items-center justify-start group cursor-pointer hover:shadow-lg focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 transition-shadow duration-200 bg-card rounded-2xl"
               onClick={() => navigate(module.path)}
               tabIndex={0}
               onKeyPress={(e) => (e.key === 'Enter' || e.key === ' ') && navigate(module.path)}
