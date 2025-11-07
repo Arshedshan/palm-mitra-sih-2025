@@ -1,4 +1,4 @@
-// Create this file at: src/pages/Login.tsx
+// src/pages/Login.tsx
 
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
@@ -101,6 +101,10 @@ const Login = () => {
               Register here
             </Link>
           </p>
+          {/* --- ADDED THIS LINK --- */}
+          <Link to="/investor-register" className="text-sm text-muted-foreground hover:underline mt-4">
+            Interested to invest? Register as an investor
+          </Link>
         </CardFooter>
       </Card>
     </div>
