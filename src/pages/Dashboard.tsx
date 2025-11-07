@@ -64,8 +64,9 @@ const Dashboard = () => {
       currentMarketValue: 0,
       predictedMarketValue: 0,
       // --- MODIFIED STATS ---
-      experienceYears: null as number | null,
+      experienceYears: null as number | null, // Kept for potential other uses
       cultivationStatus: null as string | null,
+      daysToHarvest: null as number | null, // <-- ADDED
       // --------------------
   });
   const [loadingStats, setLoadingStats] = useState(true);
@@ -85,11 +86,12 @@ const Dashboard = () => {
         .select(`investors ( offer_percent, amount )`)
         .eq('farmer_id', profile.id);
 
+      // --- Query remains the same, we have planting_date and status ---
       const getCultivationData = supabase
         .from('cultivation')
         .select('planting_date, status')
         .eq('farmer_id', profile.id)
-        .order('planting_date', { ascending: true }) // Get the *earliest* planting date for experience
+        .order('planting_date', { ascending: true }) // Get the *earliest* planting date
         .limit(1)
         .single();
         
@@ -133,6 +135,7 @@ const Dashboard = () => {
           let cultivationStats = {
               experienceYears: null as number | null,
               cultivationStatus: null as string | null,
+              daysToHarvest: null as number | null, // <-- ADDED
           };
           if (!cultivationResult.error && cultivationResult.data) {
               const plantDate = new Date(cultivationResult.data.planting_date);
@@ -141,11 +144,25 @@ const Dashboard = () => {
               // Calculate experience in years
               const diffYears = parseFloat((diffTime / (1000 * 60 * 60 * 24 * 365.25)).toFixed(1));
               
+              const status = cultivationResult.data.status || "Gestation";
+              let daysToHarvest: number | null = null;
+
+              // Calculate days to first harvest if in Gestation
+              if (status === 'Gestation' && cultivationResult.data.planting_date) {
+                  const gestationPeriodDays = 3.5 * 365.25; // ~1278 days
+                  const firstHarvestDate = new Date(plantDate.getTime() + gestationPeriodDays * 24 * 60 * 60 * 1000);
+                  const timeToHarvest = firstHarvestDate.getTime() - today.getTime();
+                  // Get the ceiling (round up) and ensure it's not negative
+                  daysToHarvest = Math.max(0, Math.ceil(timeToHarvest / (1000 * 60 * 60 * 24)));
+              }
+
               cultivationStats = {
                   experienceYears: diffYears > 0 ? diffYears : 0,
-                  cultivationStatus: cultivationResult.data.status || "Gestation",
+                  cultivationStatus: status,
+                  daysToHarvest: daysToHarvest, // <-- SET
               };
           } else if (cultivationResult.error && cultivationResult.error.code !== 'PGRST116') {
+              // Ignore 'PGRST116' (No rows found)
               toast.error("Could not load cultivation data.");
               console.error("Error fetching cultivation:", cultivationResult.error);
           }
@@ -163,7 +180,7 @@ const Dashboard = () => {
           setStats({
               totalLand: totalLand,
               ...investorStats,
-              ...cultivationStats,
+              ...cultivationStats, // <-- Pass new stats
               ...marketStats,
           });
           
@@ -178,7 +195,7 @@ const Dashboard = () => {
     navigate('/');
   };
 
-  // --- NEW FUNCTION for the toggle ---
+  // --- (keep handleSeekingToggle) ---
   const handleSeekingToggle = async (checked: boolean) => {
       if (!profile) return;
       
@@ -278,13 +295,28 @@ const Dashboard = () => {
                   
                   {/* --- MODIFIED CULTIVATION CARD --- */}
                   <Card className="bg-white/10 p-3 sm:p-4 rounded-lg">
-                    <div className="flex items-center gap-1.5 mb-1"><BarChart className="w-4 h-4 opacity-80" /><p className="text-xs opacity-80 font-medium">Experience</p></div>
-                    <p className="text-xl sm:text-2xl font-bold leading-tight">
-                        {stats.experienceYears !== null ? `${stats.experienceYears} years` : 'N/A'}
-                    </p>
-                    <p className="text-xs opacity-80 leading-tight">
-                        Status: {stats.cultivationStatus || 'N/A'}
-                    </p>
+                    <div className="flex items-center gap-1.5 mb-1"><CalendarDays className="w-4 h-4 opacity-80" /><p className="text-xs opacity-80 font-medium">Harvest Status</p></div>
+                    
+                    {/* Logic to show days or status */}
+                    {stats.cultivationStatus === 'Gestation' && stats.daysToHarvest !== null && stats.daysToHarvest > 0 ? (
+                        <>
+                            <p className="text-xl sm:text-2xl font-bold leading-tight">
+                                ~{stats.daysToHarvest} days
+                            </p>
+                            <p className="text-xs opacity-80 leading-tight">
+                                until first harvest
+                            </p>
+                        </>
+                    ) : (
+                        <>
+                            <p className="text-xl sm:text-2xl font-bold leading-tight">
+                                {stats.cultivationStatus || 'N/A'}
+                            </p>
+                            <p className="text-xs opacity-80 leading-tight">
+                                {stats.cultivationStatus === 'Mature' ? 'Ready for harvest' : (stats.cultivationStatus ? 'Status' : 'No planting date')}
+                            </p>
+                        </>
+                    )}
                   </Card>
                   {/* ---------------------------------- */}
 
@@ -303,7 +335,7 @@ const Dashboard = () => {
 
       {/* --- Module Grid & NEW Toggle --- */}
       <div className="container mx-auto max-w-4xl -mt-8 relative z-20 px-4 sm:px-0">
-         {/* --- NEW TOGGLE SWITCH --- */}
+         {/* --- (keep toggle switch) --- */}
          <Card className="p-4 sm:p-6 shadow-medium bg-card mb-4 flex flex-col sm:flex-row items-center justify-between gap-3 rounded-2xl">
              <div className="flex items-center gap-3">
                  <Eye className="w-6 h-6 text-primary" />
