@@ -1,5 +1,4 @@
-// Replace this file: src/pages/Onboarding.tsx
-
+// src/pages/Onboarding.tsx
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -10,13 +9,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { MapPin, ArrowRight, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabaseClient";
-import { useAuth } from "@/context/AuthContext"; // <-- Import useAuth
+import { useAuth, FarmerProfile } from "@/context/AuthContext"; // <-- Import useAuth AND FarmerProfile type
 
 // Define the questions, including the new 'plantingDate'
 const questions = [
   { id: "name", label: "What is your name?", type: "text", placeholder: "Enter your name" },
   { id: "district", label: "What is your district?", type: "select", placeholder: "Select your district" },
-  { id: "landSize", label: "How much land? (in acres)", type: "text", placeholder: "e.g., 2.5 or 5" },
+  { id: "landSize", label: "How much land do you have? (in acres)", type: "text", placeholder: "e.g., 2.5 or 5" },
   { id: "plantingDate", label: "When did you plant your oil palm? (Approx.)", type: "date" },
 ];
 
@@ -40,7 +39,10 @@ const districts = [
 
 const Onboarding = () => {
   const navigate = useNavigate();
-  const { user, profile } = useAuth(); // <-- Get the logged-in user and profile
+  // --- MODIFICATION ---
+  const { user, profile, setProfile } = useAuth(); // <-- Get user, profile, AND setProfile
+  // --------------------
+  
   const [currentStep, setCurrentStep] = useState(0);
   const [formData, setFormData] = useState<Record<string, string>>({});
   const [isLocating, setIsLocating] = useState(false);
@@ -119,7 +121,7 @@ const Onboarding = () => {
             language: langCode,
             gps_coords: location
           })
-          .select('id, name, district, land_size') // Select new profile data
+          .select('*') // <-- MODIFICATION: Select all fields
           .single();
 
         if (farmerError) throw farmerError;
@@ -143,10 +145,14 @@ const Onboarding = () => {
         }
 
         setIsSaving(false);
-        // Save profile to localStorage (for Verification page)
-        // The AuthContext will also pick this up, but this is faster
+
+        // --- FIX: Manually update the AuthContext ---
+        // This tells the app the profile exists *before* navigating
+        setProfile(farmer as FarmerProfile); 
+        // -------------------------------------------
+        
+        // No longer need localStorage for auth, but Verification page uses it
         localStorage.setItem("farmerProfile", JSON.stringify(farmer));
-        localStorage.setItem("farmerId", farmer.id);
         
         navigate("/verification"); // Go to verification step
 

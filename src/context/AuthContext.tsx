@@ -22,6 +22,7 @@ interface AuthContextType {
   profile: FarmerProfile | null;
   loading: boolean;
   logout: () => Promise<void>;
+  // --- ADD THIS LINE ---
   // Expose setProfile to be called manually from Onboarding
   setProfile: (profile: FarmerProfile | null) => void;
 }
@@ -71,7 +72,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     // --- THIS LOGIC IS CORRECTED ---
     // Only fetch if we have a user
     if (user) {
-      setLoading(true); // Start loading profile data
+      // Don't set loading to true if profile is already loaded
+      // This prevents flicker on hot-reload
+      if (!profile) {
+         setLoading(true); // Start loading profile data
+      }
       supabase
         .from('farmers')
         .select('*')
@@ -80,9 +85,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         .then(({ data, error }) => {
           if (error && error.code !== 'PGRST116') { // PGRST116 = no rows found
             console.warn('Error fetching farmer profile:', error.message);
-          } else if (data) {
+          } 
+          
+          if (data) {
             setProfile(data as FarmerProfile);
-            // Sync localStorage (optional, but good for consistency)
             localStorage.setItem("farmerProfile", JSON.stringify(data));
             localStorage.setItem("farmerId", data.id);
           } else {
@@ -96,8 +102,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setProfile(null);
       setLoading(false);
     }
-  }, [user]); // <-- Dependency array is changed to ONLY 'user'
+    // --- FIX: Dependency array changed to ONLY 'user' ---
+  }, [user]); 
   // --- END OF FIX ---
+
 
   const logout = async () => {
     await supabase.auth.signOut();
@@ -110,6 +118,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     profile,
     loading, // This now correctly reflects both auth and profile loading
     logout,
+    // --- ADD THIS LINE ---
     setProfile, // Pass the setter function
   };
 

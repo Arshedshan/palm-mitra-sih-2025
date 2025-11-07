@@ -1,30 +1,51 @@
+// src/pages/Verification.tsx
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { CheckCircle2, Loader2 } from "lucide-react";
+import { useAuth } from "@/context/AuthContext"; // <-- Import useAuth
+import { toast } from "sonner"; // <-- Import toast for error handling
 
 const Verification = () => {
   const navigate = useNavigate();
   const [isVerifying, setIsVerifying] = useState(true);
-  const [farmerName, setFarmerName] = useState("");
+  // --- MODIFICATION: Get profile from Auth context ---
+  const { profile, loading } = useAuth(); 
+  // --------------------------------------------------
 
   useEffect(() => {
-    const profile = localStorage.getItem("farmerProfile");
-    if (profile) {
-      const data = JSON.parse(profile);
-      setFarmerName(data.name);
-      
-      // Simulate blockchain verification
-      setTimeout(() => {
-        setIsVerifying(false);
-      }, 2500);
+    // Wait for auth loading to finish
+    if (loading) {
+      setIsVerifying(true); // Show loader while auth is loading
+      return;
     }
-  }, []);
+
+    // --- MODIFICATION: Check profile from context, not localStorage ---
+    if (profile) {
+      // Profile exists, simulate blockchain/verification delay
+      const timer = setTimeout(() => {
+        setIsVerifying(false);
+      }, 2500); // 2.5 seconds delay
+
+      return () => clearTimeout(timer); // Cleanup timer on unmount
+
+    } else {
+        // Auth is done, but profile is still null
+        // This means the user landed here directly without onboarding
+        console.warn("Verification page: Profile not found in context.");
+        toast.error("Profile not found. Please complete onboarding.");
+        navigate("/onboarding");
+    }
+  }, [profile, loading, navigate]); // Depend on profile and loading from context
+  // ------------------------------------------------------------
 
   const handleContinue = () => {
     navigate("/dashboard");
   };
+  
+  // Use profile name from context, fallback to "Farmer"
+  const farmerName = profile?.name?.split(" ")[0] || "Farmer";
 
   return (
     <div className="min-h-screen bg-gradient-subtle flex flex-col items-center justify-center p-6">
@@ -37,7 +58,7 @@ const Verification = () => {
                 Verifying Your Farm
               </h2>
               <p className="text-muted-foreground">
-                Checking deforestation records and registering on Green Ledger...
+                Checking records and registering on Green Ledger...
               </p>
             </div>
           </Card>
@@ -47,7 +68,7 @@ const Verification = () => {
               <div className="mx-auto w-24 h-24 bg-success rounded-full flex items-center justify-center shadow-strong animate-in zoom-in duration-500">
                 <CheckCircle2 className="w-14 h-14 text-success-foreground" />
               </div>
-              
+
               <div className="space-y-3">
                 <h2 className="text-3xl font-bold text-foreground">
                   Welcome, {farmerName}!
@@ -56,7 +77,7 @@ const Verification = () => {
                   ✅ Your Farm is Verified
                 </p>
                 <p className="text-muted-foreground">
-                  Your farm has been registered as Deforestation-Free on the Green Ledger blockchain
+                  Registered as Deforestation-Free on the Green Ledger
                 </p>
               </div>
             </Card>
@@ -64,7 +85,7 @@ const Verification = () => {
             <Button
               variant="success"
               size="lg"
-              className="w-full"
+              className="w-full h-14" // Match height
               onClick={handleContinue}
             >
               Continue to Dashboard
