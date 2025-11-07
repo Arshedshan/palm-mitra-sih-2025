@@ -12,6 +12,7 @@ import Login from "./pages/Login";
 import Register from "./pages/Register";
 // Investor Auth
 import InvestorLogin from "./pages/InvestorLogin"; // --- ADDED ---
+import InvestorRegister from "./pages/InvestorRegister"; // <-- IMPORT NEW PAGE
 // Protected Route Guards
 import { ProtectedRoute, ProfileRequiredRoute } from "./components/ProtectedRoute";
 // Farmer Pages
@@ -57,6 +58,7 @@ const AppRoutes = () => {
       
       {/* --- NEW: Public Investor Routes --- */}
       <Route path="/investor-login" element={<InvestorLogin />} />
+      <Route path="/investor-register" element={<InvestorRegister />} /> {/* <-- ADD THIS ROUTE */}
       
       {/* Routes for logged-in FARMERS who might NOT have a profile yet */}
       <Route element={<ProtectedRoute />}>
