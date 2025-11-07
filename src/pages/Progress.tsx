@@ -1,4 +1,5 @@
-// src/pages/Progress.tsx
+// Replace this file: src/pages/Progress.tsx
+
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
@@ -8,15 +9,16 @@ import {
   ArrowLeft,
   Loader2,
   Send,
-  Heart, // Added back for display
-  MessageCircle, // Added back for display
-  Share2, // Added back for display
+  Heart,
+  MessageCircle,
+  Share2,
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { toast } from "sonner";
 import { Textarea } from "@/components/ui/textarea";
+import { useAuth } from "@/context/AuthContext"; // <-- Import useAuth
 
-// Define interface for Post data (can be shared later)
+// Define interface for Post data
 interface Post {
     id: number;
     author_name: string;
@@ -28,15 +30,16 @@ interface Post {
     comments: number;
     image_url: string | null;
     created_at: string;
+    farmer_id: string; // <-- Add farmer_id
 }
 
 const Progress = () => {
     const navigate = useNavigate();
+    const { profile, loading: authLoading } = useAuth(); // <-- Get profile
     const [newPostContent, setNewPostContent] = useState("");
     const [isPosting, setIsPosting] = useState(false);
-    const [farmerProfile, setFarmerProfile] = useState<any>({});
-    const [myPosts, setMyPosts] = useState<Post[]>([]); // State to hold user's posts
-    const [isLoadingPosts, setIsLoadingPosts] = useState(true); // Loading state for posts
+    const [myPosts, setMyPosts] = useState<Post[]>([]);
+    const [isLoadingPosts, setIsLoadingPosts] = useState(true);
 
     // Helper function for relative time
     const formatRelativeTime = (timestamp: string): string => {
@@ -51,68 +54,57 @@ const Progress = () => {
         if (diffMinutes < 60) return `${diffMinutes}m ago`;
         if (diffHours < 24) return `${diffHours}h ago`;
         if (diffDays < 7) return `${diffDays}d ago`;
-        return date.toLocaleDateString(); // Older than a week, show date
+        return date.toLocaleDateString();
     };
 
 
-    // Fetch farmer profile and their posts
+    // Fetch farmer's posts
     useEffect(() => {
-        const fetchProfileAndPosts = async () => {
-             setIsLoadingPosts(true); // Start loading posts
-             let currentFarmerName: string | null = null;
+        if (!authLoading && profile) {
+            const fetchMyPosts = async () => {
+                 setIsLoadingPosts(true);
+                 
+                 const { data, error } = await supabase
+                    .from('posts')
+                    .select('*')
+                    // Filter by the farmer's profile ID (PK of farmers table)
+                    .eq('farmer_id', profile.id) 
+                    .order('created_at', { ascending: false });
 
-             // 1. Get farmer profile
-             const storedProfile = localStorage.getItem("farmerProfile");
-             if (storedProfile) {
-                try {
-                    const profileData = JSON.parse(storedProfile);
-                    setFarmerProfile(profileData);
-                    currentFarmerName = profileData.name;
-                } catch (e) { console.error("Failed to parse profile"); }
-             }
-
-             if (!currentFarmerName) {
-                 toast.error("Could not identify your profile. Please log in again.");
+                 if (error) {
+                    console.error("Error fetching user's posts:", error);
+                    toast.error("Could not load your previous posts.");
+                    setMyPosts([]);
+                 } else {
+                    const formattedPosts = data.map(post => ({
+                        ...post,
+                        time: formatRelativeTime(post.created_at)
+                    }));
+                    setMyPosts(formattedPosts);
+                 }
                  setIsLoadingPosts(false);
-                 navigate('/onboarding'); // Redirect if profile essential data missing
-                 return;
-             }
-
-             // 2. Fetch posts filtered by author_name
-             const { data, error } = await supabase
-                .from('posts')
-                .select('*')
-                .eq('author_name', currentFarmerName) // Filter by the farmer's name
-                .order('created_at', { ascending: false });
-
-             if (error) {
-                console.error("Error fetching user's posts:", error);
-                toast.error("Could not load your previous posts.");
-                setMyPosts([]);
-             } else {
-                const formattedPosts = data.map(post => ({
-                    ...post,
-                    time: formatRelativeTime(post.created_at)
-                }));
-                setMyPosts(formattedPosts);
-             }
-             setIsLoadingPosts(false); // Finish loading posts
-        };
-        fetchProfileAndPosts();
-    }, [navigate]); // Add navigate dependency
+            };
+            fetchMyPosts();
+        } else if (!authLoading && !profile) {
+            toast.error("Profile not loaded. Redirecting...");
+            navigate('/onboarding');
+        }
+    }, [authLoading, profile, navigate]); // Depend on auth context
 
     // Handle New Post Submission
     const handlePostSubmit = async () => {
         if (!newPostContent.trim()) { toast.error("Post content cannot be empty."); return; }
-        if (!farmerProfile.name) { toast.error("User profile not loaded."); return; }
+        if (!profile) { toast.error("User profile not loaded."); return; }
 
         setIsPosting(true);
         const newPostData = {
-            author_name: farmerProfile.name,
-            location: farmerProfile.district || "Unknown Location",
-            avatar: farmerProfile.name?.charAt(0).toUpperCase() || "🧑‍🌾",
+            farmer_id: profile.id, // <-- CRITICAL: Link post to farmer's profile ID
+            author_name: profile.name,
+            location: profile.district || "Unknown Location",
+            avatar: profile.name?.charAt(0).toUpperCase() || "🧑‍🌾",
             content: newPostContent,
-            // 'time' is generated from created_at, don't insert it
+            likes: 0, // Set defaults
+            comments: 0 // Set defaults
         };
 
         const { data, error } = await supabase
@@ -134,8 +126,16 @@ const Progress = () => {
         setIsPosting(false);
     };
 
+    if (authLoading || !profile) {
+       return (
+         <div className="min-h-screen flex items-center justify-center bg-gradient-subtle">
+           <Loader2 className="w-12 h-12 animate-spin text-primary" />
+         </div>
+       );
+    }
+
     return (
-        <div className="min-h-screen bg-gradient-subtle">
+        <div className="min-h-screen bg-gradient-subtle pb-6">
             <div className="container mx-auto p-4 sm:p-6 max-w-2xl">
                 <div className="space-y-6">
                     {/* Header */}
@@ -150,23 +150,23 @@ const Progress = () => {
                     </div>
 
                     {/* New Post Card */}
-                    <Card className="p-4 sm:p-6 shadow-soft space-y-3 sticky top-4 bg-card/90 backdrop-blur z-10"> {/* Added sticky positioning */}
+                    <Card className="p-4 sm:p-6 shadow-soft space-y-3 sticky top-4 bg-card/90 backdrop-blur z-10">
                          <div className="flex items-start gap-3">
                              <Avatar>
                                  <AvatarFallback className="bg-primary text-primary-foreground">
-                                    {farmerProfile.name?.charAt(0).toUpperCase() || '🧑‍🌾'}
+                                    {profile.name?.charAt(0).toUpperCase() || '🧑‍🌾'}
                                  </AvatarFallback>
                              </Avatar>
                              <Textarea
                                  placeholder="Share your latest cultivation progress, challenges, or successes..."
                                  value={newPostContent}
                                  onChange={(e) => setNewPostContent(e.target.value)}
-                                 className="flex-1 min-h-[80px] sm:min-h-[100px]" // Adjusted height
-                                 disabled={isPosting || !farmerProfile.name}
+                                 className="flex-1 min-h-[80px] sm:min-h-[100px]"
+                                 disabled={isPosting}
                              />
                          </div>
                          <div className="flex justify-end items-center">
-                             <Button onClick={handlePostSubmit} disabled={isPosting || !newPostContent.trim() || !farmerProfile.name}>
+                             <Button onClick={handlePostSubmit} disabled={isPosting || !newPostContent.trim()}>
                                  {isPosting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
                                  <span className="ml-2">{isPosting ? "Posting..." : "Post Update"}</span>
                              </Button>
@@ -184,13 +184,13 @@ const Progress = () => {
                                 <Loader2 className="w-8 h-8 animate-spin text-primary" />
                             </div>
                         ) : myPosts.length === 0 ? (
-                           <Card className="p-6 text-center text-muted-foreground">
+                           <Card className="p-6 text-center text-muted-foreground rounded-xl">
                              You haven't posted any updates yet. Use the box above to share your progress!
                            </Card>
                         ) : (
                           myPosts.map((post) => (
                             // --- Reusing Post Card Structure from Community.tsx ---
-                            <Card key={post.id} className="p-4 sm:p-6 space-y-4 shadow-soft bg-card">
+                            <Card key={post.id} className="p-4 sm:p-6 space-y-4 shadow-soft bg-card rounded-xl">
                               {/* Author Info */}
                               <div className="flex items-center gap-3">
                                 <Avatar className="w-10 h-10 sm:w-12 sm:h-12">
@@ -207,7 +207,7 @@ const Progress = () => {
                               </div>
 
                               {/* Content */}
-                              <p className="text-foreground leading-relaxed text-sm sm:text-base">{post.content}</p>
+                              <p className="text-foreground leading-relaxed text-sm sm:text-base whitespace-pre-wrap">{post.content}</p>
 
                               {/* Image/Icon */}
                               {post.image_url && (
@@ -223,25 +223,22 @@ const Progress = () => {
                               {/* Actions */}
                               <div className="flex items-center gap-4 sm:gap-6 pt-2 border-t">
                                 <span className="flex items-center gap-1.5 sm:gap-2 text-muted-foreground">
-                                  <Heart className="w-4 h-4 sm:w-5 sm:h-5 text-pink-500/80" /> {/* Slightly muted */}
+                                  <Heart className="w-4 h-4 sm:w-5 sm:h-5 text-pink-500/80" />
                                   <span className="text-xs sm:text-sm font-medium">{post.likes}</span>
                                 </span>
                                 <span className="flex items-center gap-1.5 sm:gap-2 text-muted-foreground">
-                                  <MessageCircle className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500/80" /> {/* Slightly muted */}
+                                  <MessageCircle className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500/80" />
                                   <span className="text-xs sm:text-sm font-medium">{post.comments}</span>
                                 </span>
                                 <button className="flex items-center gap-1.5 sm:gap-2 text-muted-foreground hover:text-primary transition-colors ml-auto">
                                   <Share2 className="w-4 h-4 sm:w-5 sm:h-5" />
                                   <span className="hidden sm:inline text-xs sm:text-sm font-medium">Share</span>
                                 </button>
-                                {/* Add Edit/Delete buttons specific to 'My Progress' if needed */}
                               </div>
                             </Card>
-                            // --- End of Reused Post Card ---
                           ))
                         )}
                     </div>
-
                 </div>
             </div>
         </div>
