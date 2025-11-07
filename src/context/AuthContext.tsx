@@ -1,5 +1,3 @@
-// Create this file at: src/context/AuthContext.tsx
-
 import { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import type { Session, User } from '@supabase/supabase-js';
@@ -14,7 +12,7 @@ export interface FarmerProfile {
   created_at: string;
   language: string;
   gps_coords: { latitude: number; longitude: number; } | null;
-  // Add avatar_url if you implement it
+  // Add other fields like avatar_url if you have them
 }
 
 interface AuthContextType {
@@ -23,6 +21,9 @@ interface AuthContextType {
   profile: FarmerProfile | null;
   loading: boolean;
   logout: () => Promise<void>;
+  // --- ADD THIS LINE ---
+  // Expose setProfile to be called manually from Onboarding
+  setProfile: (profile: FarmerProfile | null) => void;
 }
 
 // Create the context
@@ -81,7 +82,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             console.warn('Error fetching farmer profile:', error.message);
           } else if (data) {
             setProfile(data as FarmerProfile);
-            // Sync localStorage for older components if needed (optional)
+            // Sync localStorage (optional, but good for consistency)
             localStorage.setItem("farmerProfile", JSON.stringify(data));
             localStorage.setItem("farmerId", data.id);
           }
@@ -107,6 +108,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     profile,
     loading: loading,
     logout,
+    // --- ADD THIS LINE ---
+    setProfile, // Pass the setter function
   };
 
   return (
