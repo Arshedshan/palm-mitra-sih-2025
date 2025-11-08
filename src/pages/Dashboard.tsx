@@ -10,7 +10,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
   Users, BookOpen, DollarSign, MessageCircle, TrendingUp, Award,
   MapPin, Sprout, CheckCircle2, User, Loader2, LogOut, CalendarDays, Eye, BarChart,
-  Shield, Banknote // <-- Added Banknote
+  Shield, Banknote 
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabaseClient';
@@ -19,11 +19,10 @@ import { toast } from 'sonner';
 import { Switch } from "@/components/ui/switch"; 
 import { Label } from "@/components/ui/label"; 
 
-// --- MODIFIED MODULES ARRAY ---
-// (Removed 'My Progress', Added 'Micro Finance')
+// --- MODULES ARRAY ---
 const modules = [
   {
-    id: "community", icon: Users, label: "Community", description: "Success Stories", // <-- Reverted description
+    id: "community", icon: Users, label: "Community", description: "Feed & Progress", 
     path: "/community", iconBgColor: "bg-[#4285F4]/20", iconColor: "text-[#4285F4]",
   },
   {
@@ -42,17 +41,14 @@ const modules = [
     id: "investors", icon: TrendingUp, label: "Find Investors", description: "Fractional Farming",
     path: "/investors", iconBgColor: "bg-[#E91E63]/20", iconColor: "text-[#E91E63]",
   },
-  // --- NEW MODULE ---
   {
     id: "microfinance", icon: Banknote, label: "Micro Finance", description: "Loan Partners",
     path: "/micro-finance", iconBgColor: "bg-[#2196F3]/20", iconColor: "text-[#2196F3]",
   },
-  // --- EXISTING MODULE ---
   {
     id: "insurance", icon: Shield, label: "Protect Harvest", description: "Insurance Plans",
     path: "/protect-harvest", iconBgColor: "bg-[#673AB7]/20", iconColor: "text-[#673AB7]",
   },
-  // --- EXISTING MODULE ---
   {
     id: "subsidies", icon: Award, label: "Govt. Schemes", description: "Subsidies & Benefits",
     path: "/govt-schemes", iconBgColor: "bg-[#795548]/20", iconColor: "text-[#795548]",
@@ -242,17 +238,22 @@ const Dashboard = () => {
         <div className="container mx-auto max-w-4xl text-primary-foreground space-y-4">
           {/* Header Row with Logout */}
           <div className="flex items-center justify-between">
-             <div className="flex items-center gap-3">
+             {/* --- AVATAR AND NAME ARE NOW CLICKABLE --- */}
+             <button 
+              className="flex items-center gap-3 cursor-pointer hover:opacity-90 transition-opacity rounded-md p-1 -ml-1"
+              onClick={() => navigate('/profile')}
+            >
               <Avatar className="w-12 h-12 border-2 border-primary-foreground/50">
                 <AvatarFallback className="bg-white/20 text-xl">
                   <User className="w-6 h-6" />
                 </AvatarFallback>
               </Avatar>
-              <div>
+              <div className="text-left">
                 <h1 className="text-xl font-bold leading-tight">Welcome, {farmerName}!</h1>
                 <p className="text-lg font-semibold leading-tight -mt-0.5">{profile.district}</p>
               </div>
-            </div>
+            </button>
+            {/* ------------------------------------------- */}
             <Button variant="ghost" size="icon" onClick={handleLogout} className="text-primary-foreground hover:bg-white/20 rounded-full">
               <LogOut className="w-5 h-5" />
             </Button>
@@ -355,7 +356,6 @@ const Dashboard = () => {
          </Card>
          
         {/* --- Module Grid --- */}
-        {/* This 8-item grid will now wrap correctly (4 rows of 2) */}
         <div className="grid grid-cols-2 gap-4 sm:gap-6">
           {modules.map((module) => (
             <Card

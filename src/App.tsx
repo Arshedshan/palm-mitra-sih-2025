@@ -35,12 +35,13 @@ import LoanCalculator from "./pages/LoanCalculator";
 import Insurance from "./pages/Insurance";
 import MarketPrice from "./pages/MarketPrice";
 import Investors from "./pages/Investors";
-import Progress from "./pages/Progress"; // <-- RE-ADDED
+import Progress from "./pages/Progress"; 
 
 // --- IMPORT NEW PAGES ---
 import InsuranceSchemes from "./pages/InsuranceSchemes";
 import GovtSchemes from "./pages/GovtSchemes";
-import MicroFinance from "./pages/MicroFinance"; // <-- ADDED
+import MicroFinance from "./pages/MicroFinance"; 
+import Profile from "./pages/Profile"; // <-- ADDED
 // ----------------------
 // Investor Pages
 import InvestorDashboard from "./pages/InvestorDashboard";
@@ -82,6 +83,7 @@ const AppRoutes = () => {
       
       <Route element={<ProfileRequiredRoute />}>
         <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/profile" element={<Profile />} /> {/* <-- ADDED */}
         <Route path="/chatbot" element={<Chatbot />} />
         <Route path="/learn" element={<Learn />} />
         <Route path="/community" element={<Community />} />
@@ -91,12 +93,12 @@ const AppRoutes = () => {
         <Route path="/money/insurance" element={<Insurance />} />
         <Route path="/money/market" element={<MarketPrice />} />
         <Route path="/investors" element={<Investors />} />
-        <Route path="/progress" element={<Progress />} /> {/* <-- RE-ADDED */}
+        <Route path="/progress" element={<Progress />} /> 
 
         {/* --- ADD NEW ROUTES --- */}
         <Route path="/protect-harvest" element={<InsuranceSchemes />} />
         <Route path="/govt-schemes" element={<GovtSchemes />} />
-        <Route path="/micro-finance" element={<MicroFinance />} /> {/* <-- ADDED */}
+        <Route path="/micro-finance" element={<MicroFinance />} /> 
         {/* -------------------- */}
       </Route>
       
