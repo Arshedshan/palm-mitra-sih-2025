@@ -1,3 +1,5 @@
+// src/App.tsx
+
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -15,7 +17,7 @@ import InvestorLogin from "./pages/InvestorLogin";
 import InvestorRegister from "./pages/InvestorRegister"; 
 // Protected Route Guards
 import { ProtectedRoute, ProfileRequiredRoute } from "./components/ProtectedRoute";
-import { InvestorProtectedRoute } from "./components/InvestorProtectedRoute"; // <-- IMPORT NEW
+import { InvestorProtectedRoute } from "./components/InvestorProtectedRoute";
 // Farmer Pages
 import Language from "./pages/Language";
 import Onboarding from "./pages/Onboarding";
@@ -31,6 +33,10 @@ import Insurance from "./pages/Insurance";
 import MarketPrice from "./pages/MarketPrice";
 import Investors from "./pages/Investors";
 import Progress from "./pages/Progress";
+// --- IMPORT NEW PAGES ---
+import InsuranceSchemes from "./pages/InsuranceSchemes";
+import GovtSchemes from "./pages/GovtSchemes";
+// ----------------------
 // Investor Pages
 import InvestorDashboard from "./pages/InvestorDashboard";
 import InvestorMarketplace from "./pages/InvestorMarketplace"; 
@@ -42,7 +48,6 @@ import NotFound from "./pages/NotFound";
 const queryClient = new QueryClient();
 
 const AppRoutes = () => {
-  // We use the farmer auth loading for the main app loader
   const { loading: farmerAuthLoading } = useAuth();
 
   if (farmerAuthLoading) {
@@ -82,10 +87,13 @@ const AppRoutes = () => {
         <Route path="/money/market" element={<MarketPrice />} />
         <Route path="/investors" element={<Investors />} />
         <Route path="/progress" element={<Progress />} />
+        {/* --- ADD NEW ROUTES --- */}
+        <Route path="/protect-harvest" element={<InsuranceSchemes />} />
+        <Route path="/govt-schemes" element={<GovtSchemes />} />
+        {/* -------------------- */}
       </Route>
       
       {/* --- INVESTOR Protected Routes --- */}
-      {/* All investor pages are wrapped in the new protected route */}
       <Route element={<InvestorProtectedRoute />}>
         <Route path="/investor-dashboard" element={<InvestorDashboard />} />
         <Route path="/investor-marketplace" element={<InvestorMarketplace />} />

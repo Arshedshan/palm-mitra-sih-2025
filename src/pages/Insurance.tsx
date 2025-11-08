@@ -1,3 +1,5 @@
+// src/pages/Insurance.tsx
+
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -6,11 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ArrowLeft, Shield } from "lucide-react";
 
-const plans = [
-  { name: "Basic Cover", premium: "2%", coverage: "Up to ₹2 Lakh" },
-  { name: "Standard Cover", premium: "3%", coverage: "Up to ₹5 Lakh" },
-  { name: "Premium Cover", premium: "4%", coverage: "Up to ₹10 Lakh" },
-];
+// The 'plans' array has been removed.
 
 const Insurance = () => {
   const navigate = useNavigate();
@@ -54,27 +52,12 @@ const Insurance = () => {
             </div>
           </Card>
 
-          {/* Plans */}
-          <Card className="p-6 shadow-medium">
-            <h3 className="font-bold mb-4">Available Insurance Plans</h3>
-            <div className="space-y-3">
-              {plans.map((plan) => (
-                <div key={plan.name} className="bg-gradient-subtle p-4 rounded-lg flex items-center justify-between">
-                  <div>
-                    <p className="font-semibold">{plan.name}</p>
-                    <p className="text-sm text-muted-foreground">{plan.coverage}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-bold text-primary">{plan.premium}</p>
-                    <p className="text-xs text-muted-foreground">of crop value</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Card>
+          {/* This section has been removed */}
+          {/* <Card className="p-6 shadow-medium"> ... </Card> */}
 
           {/* Calculator Form */}
           <Card className="p-8 shadow-medium">
+            <h3 className="text-2xl font-bold text-center mb-6">Premium Calculator</h3>
             <div className="space-y-6">
               <div className="space-y-2">
                 <Label htmlFor="cropValue">Expected Crop Value (₹)</Label>
@@ -114,7 +97,7 @@ const Insurance = () => {
                 <Card className="p-6 bg-primary/10 border-primary border-2 animate-in fade-in slide-in-from-bottom-4">
                   <div className="text-center space-y-2">
                     <p className="text-sm text-muted-foreground font-medium">
-                      Monthly Premium
+                      Estimated Monthly Premium
                     </p>
                     <p className="text-4xl font-bold text-primary">
                       ₹{result.toLocaleString("en-IN")}

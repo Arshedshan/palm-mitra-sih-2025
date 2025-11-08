@@ -1,10 +1,13 @@
+// src/pages/Dashboard.tsx
+
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
   Users, BookOpen, DollarSign, MessageCircle, TrendingUp, Award,
-  MapPin, Sprout, CheckCircle2, User, Loader2, LogOut, CalendarDays, Eye, BarChart
+  MapPin, Sprout, CheckCircle2, User, Loader2, LogOut, CalendarDays, Eye, BarChart,
+  Shield // <-- Added Shield icon
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabaseClient';
@@ -13,6 +16,8 @@ import { toast } from 'sonner';
 import { Switch } from "@/components/ui/switch"; 
 import { Label } from "@/components/ui/label"; 
 
+// --- MODIFIED MODULES ARRAY ---
+// (Restored original 6 modules + added your 2 new ones)
 const modules = [
   {
     id: "community", icon: Users, label: "Community", description: "Success Stories",
@@ -38,7 +43,18 @@ const modules = [
     id: "progress", icon: Award, label: "My Progress", description: "Track Growth",
     path: "/progress", iconBgColor: "bg-[#00BCD4]/20", iconColor: "text-[#00BCD4]",
   },
+  // --- NEW MODULE ---
+  {
+    id: "insurance", icon: Shield, label: "Protect Harvest", description: "Insurance Plans",
+    path: "/protect-harvest", iconBgColor: "bg-[#673AB7]/20", iconColor: "text-[#673AB7]",
+  },
+  // --- NEW MODULE ---
+  {
+    id: "subsidies", icon: Award, label: "Govt. Schemes", description: "Subsidies & Benefits",
+    path: "/govt-schemes", iconBgColor: "bg-[#795548]/20", iconColor: "text-[#795548]",
+  },
 ];
+// ---------------------------------
 
 interface LinkedInvestor {
   investors: {
@@ -74,14 +90,11 @@ const Dashboard = () => {
       setLoadingStats(true);
       const totalLand = profile.land_size || 0;
       
-      // --- THIS IS THE FIX ---
-      // We only select links where the status is 'approved'
       const getInvestorStats = supabase
         .from('farmer_investor_links')
         .select(`investors ( offer_percent, amount )`)
         .eq('farmer_id', profile.id)
-        .eq('status', 'approved'); // <-- ADD THIS LINE
-      // ----------------------
+        .eq('status', 'approved'); 
 
       const getCultivationData = supabase
         .from('cultivation')
@@ -110,7 +123,6 @@ const Dashboard = () => {
               remainingLand: totalLand,
               availableStake: 100,
           };
-          // This logic is now correct, as it only receives *approved* investors
           if (!investorResult.error && investorResult.data) {
               const typedData = investorResult.data as unknown as LinkedInvestor[];
               const totalStake = typedData.reduce((sum, link) => sum + (link.investors?.offer_percent || 0), 0);
@@ -339,6 +351,7 @@ const Dashboard = () => {
          </Card>
          
         {/* --- Module Grid --- */}
+        {/* This 8-item grid will now wrap correctly (4 rows of 2) */}
         <div className="grid grid-cols-2 gap-4 sm:gap-6">
           {modules.map((module) => (
             <Card
