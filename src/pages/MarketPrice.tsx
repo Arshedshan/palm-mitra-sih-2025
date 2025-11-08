@@ -1,3 +1,8 @@
+/*
+  File: arshedshan/palm-mitra-sih-2025/palm-mitra-sih-2025-9a5f98085db88ae6f7cf3338ebe08844f6cb6035/src/pages/MarketPrice.tsx
+*/
+// src/pages/MarketPrice.tsx
+
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -5,6 +10,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ArrowLeft, TrendingUp } from "lucide-react";
+import { toast } from "sonner"; // <-- IMPORT TOAST
 
 const MarketPrice = () => {
   const navigate = useNavigate();
@@ -15,7 +21,15 @@ const MarketPrice = () => {
   const calculateValue = () => {
     const acresNum = parseFloat(acres) || 0;
     
-    // Simplified market price calculation
+    // --- VALIDATION ADDED ---
+    if (acresNum <= 0) {
+      toast.error("Please enter a valid Plantation Area in acres.");
+      setCurrentValue(null); // Clear previous result
+      setFutureValue(null); // Clear previous result
+      return;
+    }
+    // --- END VALIDATION ---
+    
     const currentPrice = acresNum * 150000; // Current value per acre
     const futurePrice = acresNum * 400000; // Projected 5-year value
     

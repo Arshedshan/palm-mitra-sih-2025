@@ -1,3 +1,6 @@
+/*
+  File: arshedshan/palm-mitra-sih-2025/palm-mitra-sih-2025-9a5f98085db88ae6f7cf3338ebe08844f6cb6035/src/pages/Onboarding.tsx
+*/
 // src/pages/Onboarding.tsx
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
@@ -9,46 +12,45 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { MapPin, ArrowRight, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabaseClient";
-import { useAuth, FarmerProfile } from "@/context/AuthContext"; // <-- Import useAuth AND FarmerProfile type
+import { useAuth, FarmerProfile } from "@/context/AuthContext"; 
 
-// Define the questions, including the new 'plantingDate'
+// State and District Data
+const stateDistrictMap: Record<string, string[]> = {
+  "Andhra Pradesh": ["East Godavari", "West Godavari", "Krishna", "Chittoor"],
+  "Telangana": ["Khammam", "Nalgonda", "Suryapet", "Bhadradri Kothagudem"],
+  "Tamil Nadu": ["Tirunelveli", "Tenkasi", "Cuddalore", "Thanjavur"],
+  "Karnataka": ["Davanagere", "Shimoga", "Mysore", "Mandya"]
+};
+const states = Object.keys(stateDistrictMap).sort();
+
+
+// Questions array
 const questions = [
   { id: "name", label: "What is your name?", type: "text", placeholder: "Enter your name" },
+  { id: "phone", label: "What is your phone number?", type: "tel", placeholder: "e.g., 9876543210" }, 
+  { id: "state", label: "What is your state?", type: "select", placeholder: "Select your state" },
   { id: "district", label: "What is your district?", type: "select", placeholder: "Select your district" },
   { id: "landSize", label: "How much land do you have? (in acres)", type: "text", placeholder: "e.g., 2.5 or 5" },
   { id: "plantingDate", label: "When did you plant your oil palm? (Approx.)", type: "date" },
 ];
 
-// ... (keep the districts array as is)
-const districts = [
-    "Ariyalur", "Chengalpattu", "Chennai", "Coimbatore", "Cuddalore", "Dharmapuri",
-    "Dindigul", "Erode", "Kallakurichi", "Kanchipuram", "Kanyakumari", "Karur",
-    "Krishnagiri", "Madurai", "Mayiladuthurai", "Nagapattinam", "Namakkal", "Nilgiris",
-    "Perambalur", "Pudukkottai", "Ramanathapuram", "Ranipet", "Salem", "Sivaganga",
-    "Tenkasi", "Thanjavur", "Theni", "Thoothukudi", "Tiruchirappalli", "Tirunelveli",
-    "Tirupathur", "Tiruppur", "Tiruvallur", "Tiruvannamalai", "Tiruvarur", "Vellore",
-    "Viluppuram", "Virudhunagar",
-    // Other states
-    "Andaman and Nicobar", "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar",
-    "Chandigarh", "Chhattisgarh", "Dadra and Nagar Haveli", "Daman and Diu", "Delhi",
-    "Goa", "Gujarat", "Haryana", "Himachal Pradesh", "Jammu and Kashmir", "Jharkhand",
-    "Karnataka", "Kerala", "Lakshadweep", "Madhya Pradesh", "Maharashtra", "Manipur",
-    "Meghalaya", "Mizoram", "Nagaland", "Odisha", "Puducherry", "Punjab", "Rajasthan",
-    "Sikkim", "Telangana", "Tripura", "Uttar Pradesh", "Uttarakhand", "West Bengal"
-].sort();
 
 const Onboarding = () => {
   const navigate = useNavigate();
-  // --- MODIFICATION ---
-  const { user, profile, setProfile } = useAuth(); // <-- Get user, profile, AND setProfile
-  // --------------------
+  const { user, profile, setProfile } = useAuth(); 
   
   const [currentStep, setCurrentStep] = useState(0);
-  const [formData, setFormData] = useState<Record<string, string>>({});
+  const [formData, setFormData] = useState<Record<string, string>>({
+    name: "",
+    phone: "", 
+    state: "",
+    district: "",
+    landSize: "",
+    plantingDate: ""
+  });
   const [isLocating, setIsLocating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   
-  // Redirect if user already has a profile
   useEffect(() => {
      if (profile) {
         toast.info("You already have a profile. Redirecting to dashboard.");
@@ -56,7 +58,6 @@ const Onboarding = () => {
      }
   }, [profile, navigate]);
 
-  // Use language from localStorage (assuming Language.tsx was visited after register)
   const language = localStorage.getItem("selectedLanguageName") || "English";
   const langCode = localStorage.getItem("selectedLanguage") || 'en';
 
@@ -64,12 +65,18 @@ const Onboarding = () => {
     const currentQuestion = questions[currentStep];
     const rawValue = formData[currentQuestion.id];
 
-    // Check 1: Is the field empty or just whitespace?
+    // Validation
     if (!rawValue || rawValue.trim() === "") {
-        toast.error(`Please ${currentQuestion.type === 'select' ? 'select' : 'enter'} your ${currentQuestion.id === 'landSize' ? 'land size' : currentQuestion.id.toLowerCase()}`);
+        toast.error(`Please ${currentQuestion.type === 'select' ? 'select' : 'enter'} your ${currentQuestion.label.toLowerCase()}`);
         return;
     }
-    // Check 2: Specific validation for landSize (now type="text")
+    if (currentQuestion.id === 'phone') {
+        const phoneRegex = /^[6-9]\d{9}$/; 
+        if (!phoneRegex.test(rawValue)) {
+            toast.error("Please enter a valid 10-digit phone number.");
+            return;
+        }
+    }
     if (currentQuestion.id === 'landSize') {
         const numericString = rawValue.replace(',', '.');
         const landValue = parseFloat(numericString);
@@ -82,12 +89,11 @@ const Onboarding = () => {
     if (currentStep < questions.length - 1) {
       setCurrentStep(currentStep + 1);
     } else {
-      handleGetLocation(); // Last step, proceed to location
+      handleGetLocation(); 
     }
   };
 
   const handleGetLocation = () => {
-    // Validation for all fields before getting location
     for (const question of questions) {
         if (!formData[question.id] || formData[question.id].trim() === "") {
            toast.error(`Please complete all fields. ${question.label} is missing.`);
@@ -106,32 +112,41 @@ const Onboarding = () => {
       setIsSaving(true);
       setIsLocating(false);
 
-      const profileData = { ...formData }; // All form data
+      const profileData = { ...formData }; 
       const landSizeNum = parseFloat(profileData.landSize.replace(',', '.')) || 0;
 
+      // --- NEW: Generate and store mock address ---
+      const mockAddress = `123, Palm Tree Lane, ${profileData.district}, ${profileData.state}`;
+      // Save to local storage for Verification.tsx to read
+      localStorage.setItem("mockAddress", mockAddress); 
+      // ------------------------------------------
+
       try {
-        // 1. Insert into 'farmers' table, linking the user_id
+        // 1. Insert into 'farmers' table
         const { data: farmer, error: farmerError } = await supabase
           .from('farmers')
           .insert({
-            user_id: user.id, // <-- CRITICAL: Link to auth.user.id
+            user_id: user.id, 
             name: profileData.name,
+            phone: profileData.phone, 
+            state: profileData.state, 
             district: profileData.district,
+            address: mockAddress, // <-- SAVE ADDRESS TO DB
             land_size: landSizeNum,
             language: langCode,
             gps_coords: location
           })
-          .select('*') // <-- MODIFICATION: Select all fields
+          .select('*') 
           .single();
 
         if (farmerError) throw farmerError;
 
-        // 2. Insert into new 'cultivation' table
+        // 2. Insert into 'cultivation' table
         if (farmer && profileData.plantingDate) {
            await supabase.from('cultivation').insert({
-              farmer_id: farmer.id, // <-- Link to farmers table PK (id)
+              farmer_id: farmer.id, 
               planting_date: profileData.plantingDate,
-              status: 'Gestation' // Default status
+              status: 'Gestation' 
            });
         }
         
@@ -145,16 +160,10 @@ const Onboarding = () => {
         }
 
         setIsSaving(false);
-
-        // --- FIX: Manually update the AuthContext ---
-        // This tells the app the profile exists *before* navigating
         setProfile(farmer as FarmerProfile); 
-        // -------------------------------------------
-        
-        // No longer need localStorage for auth, but Verification page uses it
         localStorage.setItem("farmerProfile", JSON.stringify(farmer));
         
-        navigate("/verification"); // Go to verification step
+        navigate("/verification"); 
 
       } catch (error: any) {
         console.error("Supabase error during onboarding:", error);
@@ -175,7 +184,7 @@ const Onboarding = () => {
         (error) => {
           console.error("Location error:", error);
           toast.error("Location access denied. Saving profile without precise location.");
-          saveProfileAndVerify(null); // Proceed without location
+          saveProfileAndVerify(null); 
         },
         { timeout: 10000 }
       );
@@ -186,8 +195,8 @@ const Onboarding = () => {
   };
 
   const currentQuestion = questions[currentStep];
+  const currentDistricts = stateDistrictMap[formData.state] || [];
 
-  // Render null or loader if user is not set yet
   if (!user) {
      return (
          <div className="min-h-screen flex items-center justify-center bg-gradient-subtle">
@@ -217,23 +226,43 @@ const Onboarding = () => {
         </div>
 
         <Card className="p-8 shadow-medium">
-          <div className="space-y-6">
+          <form className="space-y-6" onSubmit={(e) => { e.preventDefault(); handleNext(); }}>
             <div className="space-y-2 min-h-[120px]">
               <Label htmlFor={currentQuestion.id} className="text-lg font-semibold">
                 {currentQuestion.label}
               </Label>
-              {currentQuestion.type === "select" ? (
+              
+              {currentQuestion.id === "state" ? (
                 <Select
-                  value={formData[currentQuestion.id] || ""}
+                  value={formData.state}
                   onValueChange={(value) =>
-                    setFormData({ ...formData, [currentQuestion.id]: value })
+                    setFormData({ ...formData, state: value, district: "" })
                   }
                 >
                   <SelectTrigger className="text-lg h-14">
                     <SelectValue placeholder={currentQuestion.placeholder} />
                   </SelectTrigger>
                   <SelectContent className="max-h-[300px] bg-background z-50">
-                    {districts.map((district) => (
+                    {states.map((state) => (
+                      <SelectItem key={state} value={state} className="text-base">
+                        {state}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : currentQuestion.id === "district" ? (
+                <Select
+                  value={formData.district}
+                  onValueChange={(value) =>
+                    setFormData({ ...formData, district: value })
+                  }
+                  disabled={!formData.state} 
+                >
+                  <SelectTrigger className="text-lg h-14">
+                    <SelectValue placeholder={!formData.state ? "Select a state first" : currentQuestion.placeholder} />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-[300px] bg-background z-50">
+                    {currentDistricts.map((district) => (
                       <SelectItem key={district} value={district} className="text-base">
                         {district}
                       </SelectItem>
@@ -243,15 +272,12 @@ const Onboarding = () => {
               ) : (
                  <Input
                   id={currentQuestion.id}
-                  // Set type for "date" input
-                  type={currentQuestion.type === 'date' ? 'date' : 'text'}
-                  // Use inputMode for mobile keyboards
-                  inputMode={currentQuestion.id === 'landSize' ? "decimal" : "text"}
+                  type={currentQuestion.type === 'date' ? 'date' : currentQuestion.type === 'tel' ? 'tel' : 'text'}
+                  inputMode={currentQuestion.id === 'landSize' ? "decimal" : currentQuestion.id === 'phone' ? 'tel' : 'text'}
                   placeholder={currentQuestion.placeholder}
                   value={formData[currentQuestion.id] || ""}
                   onChange={(e) => {
                     let value = e.target.value;
-                    // Filter input for landSize
                     if (currentQuestion.id === 'landSize') {
                       value = value.replace(/[^0-9.,]/g, '');
                       const separators = value.match(/[.,]/g) || [];
@@ -259,22 +285,21 @@ const Onboarding = () => {
                          const firstSeparatorIndex = value.indexOf(separators[0]);
                          value = value.substring(0, firstSeparatorIndex + 1) + value.substring(firstSeparatorIndex + 1).replace(/[.,]/g, '');
                       }
+                    } else if (currentQuestion.id === 'phone') {
+                      value = value.replace(/[^0-9]/g, '').substring(0, 10);
                     }
                     setFormData({ ...formData, [currentQuestion.id]: value });
                   }}
                   className="text-lg h-14"
                   autoFocus={currentStep === 0}
-                   onKeyPress={(e) => {
-                      if (e.key === 'Enter') { e.preventDefault(); handleNext(); }
-                   }}
                 />
               )}
             </div>
 
             <Button
+                type="submit" 
                 size="lg"
                 className="w-full h-14"
-                onClick={handleNext}
                 disabled={isLocating || isSaving}
               >
                 {isLocating ? (
@@ -287,7 +312,7 @@ const Onboarding = () => {
                    <> Next <ArrowRight className="w-5 h-5 ml-2" /> </>
                 )}
               </Button>
-          </div>
+          </form>
         </Card>
       </div>
     </div>

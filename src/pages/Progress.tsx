@@ -148,7 +148,7 @@ const Progress = () => {
                 <div className="space-y-6">
                     {/* Header */}
                     <div className="flex items-center gap-2 sm:gap-4">
-                        <Button variant="ghost" size="icon" onClick={() => navigate("/dashboard")}>
+                        <Button variant="ghost" size="icon" onClick={() => navigate("/community")}> {/* <-- Go back to community */}
                             <ArrowLeft className="w-5 h-5" />
                         </Button>
                         <div>
@@ -197,7 +197,6 @@ const Progress = () => {
                            </Card>
                         ) : (
                           myPosts.map((post) => (
-                            // --- Reusing Post Card Structure from Community.tsx ---
                             <Card key={post.id} className="p-4 sm:p-6 space-y-4 shadow-soft bg-card rounded-xl">
                               {/* Author Info */}
                               <div className="flex items-center gap-3">

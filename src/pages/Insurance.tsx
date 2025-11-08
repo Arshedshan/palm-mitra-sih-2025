@@ -1,3 +1,6 @@
+/*
+  File: arshedshan/palm-mitra-sih-2025/palm-mitra-sih-2025-9a5f98085db88ae6f7cf3338ebe08844f6cb6035/src/pages/Insurance.tsx
+*/
 // src/pages/Insurance.tsx
 
 import { useState } from "react";
@@ -7,8 +10,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ArrowLeft, Shield } from "lucide-react";
-
-// The 'plans' array has been removed.
+import { toast } from "sonner"; // <-- IMPORT TOAST
 
 const Insurance = () => {
   const navigate = useNavigate();
@@ -19,6 +21,20 @@ const Insurance = () => {
   const calculatePremium = () => {
     const value = parseFloat(cropValue) || 0;
     const rate = parseFloat(premiumRate) / 100;
+    
+    // --- VALIDATION ADDED ---
+    if (value <= 0) {
+      toast.error("Please enter a valid Expected Crop Value.");
+      setResult(null); // Clear previous result
+      return;
+    }
+    if (rate <= 0) {
+      toast.error("Please enter a valid Premium Rate.");
+      setResult(null); // Clear previous result
+      return;
+    }
+    // --- END VALIDATION ---
+
     const annual = value * rate;
     const monthly = annual / 12;
     setResult(Math.round(monthly));
@@ -51,9 +67,6 @@ const Insurance = () => {
               </div>
             </div>
           </Card>
-
-          {/* This section has been removed */}
-          {/* <Card className="p-6 shadow-medium"> ... </Card> */}
 
           {/* Calculator Form */}
           <Card className="p-8 shadow-medium">

@@ -1,3 +1,6 @@
+/*
+  File: arshedshan/palm-mitra-sih-2025/palm-mitra-sih-2025-9a5f98085db88ae6f7cf3338ebe08844f6cb6035/src/pages/FarmerPublicProfile.tsx
+*/
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -5,7 +8,8 @@ import { Card } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   ArrowLeft, Loader2, MapPin, Sprout, ShieldCheck, User, BarChart, DollarSign,
-  Info, Send, Handshake, XCircle
+  Info, Send, Handshake, XCircle,
+  Phone, Home // <-- ADDED ICONS
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabaseClient";
@@ -82,9 +86,10 @@ const FarmerPublicProfile = () => {
     const fetchFarmerDetails = async () => {
       setIsLoading(true);
       try {
+        // --- Fetch includes new fields: phone, address, state ---
         const { data: farmerData, error: farmerError } = await supabase
           .from('farmers')
-          .select('*')
+          .select('*') // <-- This already selects all columns
           .eq('id', farmerId)
           .eq('is_seeking_investment', true)
           .single();
@@ -350,6 +355,42 @@ const FarmerPublicProfile = () => {
                     </DialogContent>
                  </Dialog>
               </div>
+
+              {/* --- NEW: Farmer Details Section --- */}
+              <hr className="my-6 border-border/50" />
+              <div>
+                  <h3 className="text-lg font-semibold mb-4">Farmer Details</h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-5">
+                      {/* Contact Number */}
+                      <div className="flex items-start gap-3">
+                          <Phone className="w-5 h-5 text-primary mt-1 flex-shrink-0" />
+                          <div>
+                              <p className="text-sm font-medium text-muted-foreground">Contact Number</p>
+                              <p className="font-semibold text-foreground">{farmer.phone || 'Not Provided'}</p>
+                          </div>
+                      </div>
+                      
+                      {/* Location */}
+                      <div className="flex items-start gap-3">
+                          <MapPin className="w-5 h-5 text-primary mt-1 flex-shrink-0" />
+                          <div>
+                              <p className="text-sm font-medium text-muted-foreground">Location</p>
+                              <p className="font-semibold text-foreground">{farmer.district}, {farmer.state || 'N/A'}</p>
+                          </div>
+                      </div>
+
+                      {/* Full Address */}
+                      <div className="flex items-start gap-3 sm:col-span-2">
+                          <Home className="w-5 h-5 text-primary mt-1 flex-shrink-0" />
+                          <div>
+                              <p className="text-sm font-medium text-muted-foreground">Full Address</p>
+                              <p className="font-semibold text-foreground">{farmer.address || 'Not Provided'}</p>
+                          </div>
+                      </div>
+                  </div>
+              </div>
+              {/* --- END: Farmer Details Section --- */}
+
           </Card>
           
           {/* Harvest Records Card */}

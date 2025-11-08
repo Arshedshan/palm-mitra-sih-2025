@@ -1,3 +1,6 @@
+/*
+  File: arshedshan/palm-mitra-sih-2025/palm-mitra-sih-2025-9a5f98085db88ae6f7cf3338ebe08844f6cb6035/src/App.tsx
+*/
 // src/App.tsx
 
 import { Toaster } from "@/components/ui/toaster";
@@ -32,10 +35,12 @@ import LoanCalculator from "./pages/LoanCalculator";
 import Insurance from "./pages/Insurance";
 import MarketPrice from "./pages/MarketPrice";
 import Investors from "./pages/Investors";
-import Progress from "./pages/Progress";
+import Progress from "./pages/Progress"; // <-- RE-ADDED
+
 // --- IMPORT NEW PAGES ---
 import InsuranceSchemes from "./pages/InsuranceSchemes";
 import GovtSchemes from "./pages/GovtSchemes";
+import MicroFinance from "./pages/MicroFinance"; // <-- ADDED
 // ----------------------
 // Investor Pages
 import InvestorDashboard from "./pages/InvestorDashboard";
@@ -86,10 +91,12 @@ const AppRoutes = () => {
         <Route path="/money/insurance" element={<Insurance />} />
         <Route path="/money/market" element={<MarketPrice />} />
         <Route path="/investors" element={<Investors />} />
-        <Route path="/progress" element={<Progress />} />
+        <Route path="/progress" element={<Progress />} /> {/* <-- RE-ADDED */}
+
         {/* --- ADD NEW ROUTES --- */}
         <Route path="/protect-harvest" element={<InsuranceSchemes />} />
         <Route path="/govt-schemes" element={<GovtSchemes />} />
+        <Route path="/micro-finance" element={<MicroFinance />} /> {/* <-- ADDED */}
         {/* -------------------- */}
       </Route>
       

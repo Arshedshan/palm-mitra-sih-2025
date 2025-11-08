@@ -1,3 +1,6 @@
+/*
+  File: arshedshan/palm-mitra-sih-2025/palm-mitra-sih-2025-9a5f98085db88ae6f7cf3338ebe08844f6cb6035/src/context/AuthContext.tsx
+*/
 // src/context/AuthContext.tsx
 import { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
@@ -8,8 +11,11 @@ export interface FarmerProfile {
   id: string; // This is the farmer table's primary key (a UUID)
   user_id: string; // This is the auth.users id
   name: string;
+  state: string | null; 
   district: string;
   land_size: number;
+  phone: string | null; 
+  address: string | null; // <-- ADD THIS LINE
   created_at: string;
   language: string;
   gps_coords: { latitude: number; longitude: number; } | null;
@@ -22,8 +28,6 @@ interface AuthContextType {
   profile: FarmerProfile | null;
   loading: boolean;
   logout: () => Promise<void>;
-  // --- ADD THIS LINE ---
-  // Expose setProfile to be called manually from Onboarding
   setProfile: (profile: FarmerProfile | null) => void;
 }
 
@@ -58,6 +62,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           // Clear localStorage on logout
           localStorage.removeItem("farmerProfile");
           localStorage.removeItem("farmerId");
+          localStorage.removeItem("mockAddress"); // <-- Add this for cleanup
         }
       }
     );
@@ -69,13 +74,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   // 3. Fetch farmer profile when user changes
   useEffect(() => {
-    // --- THIS LOGIC IS CORRECTED ---
-    // Only fetch if we have a user
     if (user) {
-      // Don't set loading to true if profile is already loaded
-      // This prevents flicker on hot-reload
       if (!profile) {
-         setLoading(true); // Start loading profile data
+         setLoading(true); 
       }
       supabase
         .from('farmers')
@@ -92,34 +93,28 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             localStorage.setItem("farmerProfile", JSON.stringify(data));
             localStorage.setItem("farmerId", data.id);
           } else {
-            // No data and no error means profile is null (new user)
             setProfile(null);
           }
           setLoading(false); // Profile fetch done
         });
     } else {
-      // No user, so clear profile and stop loading
       setProfile(null);
       setLoading(false);
     }
-    // --- FIX: Dependency array changed to ONLY 'user' ---
   }, [user]); 
-  // --- END OF FIX ---
 
 
   const logout = async () => {
     await supabase.auth.signOut();
-    // Auth listener will handle setting user/session/profile to null
   };
 
   const value = {
     session,
     user,
     profile,
-    loading, // This now correctly reflects both auth and profile loading
+    loading, 
     logout,
-    // --- ADD THIS LINE ---
-    setProfile, // Pass the setter function
+    setProfile, 
   };
 
   return (

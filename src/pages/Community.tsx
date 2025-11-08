@@ -3,14 +3,13 @@
 */
 // src/pages/Community.tsx
 import { useNavigate } from "react-router-dom";
-import { useState, useEffect } from "react"; // <-- Added imports
+import { useState, useEffect } from "react"; 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { ArrowLeft, Heart, MessageCircle, Share2, Loader2 } from "lucide-react"; // <-- Removed Image, Send
-import { supabase } from "@/lib/supabaseClient"; // <-- Import supabase
+import { ArrowLeft, Heart, MessageCircle, Share2, Loader2, Send, BarChart } from "lucide-react"; // <-- Added BarChart
+import { supabase } from "@/lib/supabaseClient"; 
 import { toast } from "sonner";
-// import { Textarea } from "@/components/ui/textarea"; // <-- Removed Textarea
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"; // <-- Import Avatar
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"; 
 
 // Define interface for Post data
 interface Post {
@@ -26,26 +25,17 @@ interface Post {
     created_at: string; // Full timestamp
 }
 
-// Remove the hardcoded posts array
-
 const Community = () => {
     const navigate = useNavigate();
     const [posts, setPosts] = useState<Post[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-    // --- REMOVED STATES ---
-    // const [newPostContent, setNewPostContent] = useState(""); 
-    // const [isPosting, setIsPosting] = useState(false); 
-    // const [farmerProfile, setFarmerProfile] = useState<any>({}); 
-    // ---------------------
 
-
-    // Fetch posts
+    // Fetch all posts
     useEffect(() => {
-        const fetchPosts = async () => { // Renamed function
+        const fetchProfileAndPosts = async () => {
              setIsLoading(true);
-             // --- REMOVED PROFILE FETCH ---
-
-             // 2. Fetch posts
+             
+             // Fetch all posts
              const { data, error } = await supabase
                 .from('posts')
                 .select('*')
@@ -56,18 +46,15 @@ const Community = () => {
                 toast.error("Could not load community posts.");
                 setPosts([]);
              } else {
-                 // Map Supabase data slightly if needed (e.g., time formatting)
                  const formattedPosts = data.map(post => ({
                      ...post,
-                     // You could format the 'created_at' timestamp into a relative time string here
-                     // For simplicity, we'll use the 'time' field if it exists, or a default
                      time: post.time || formatRelativeTime(post.created_at)
                  }));
                  setPosts(formattedPosts);
              }
              setIsLoading(false);
         };
-        fetchPosts(); // Call renamed function
+        fetchProfileAndPosts();
     }, []); // Run once on mount
 
     // Helper function for relative time (Simple version)
@@ -85,10 +72,6 @@ const Community = () => {
         return `${diffDays}d ago`;
     };
 
-
-    // --- REMOVED handlePostSubmit function ---
-
-
     return (
         <div className="min-h-screen bg-gradient-subtle">
             <div className="container mx-auto p-4 sm:p-6 max-w-2xl"> {/* Adjusted padding */}
@@ -105,11 +88,33 @@ const Community = () => {
                         </div>
                     </div>
 
-                    {/* --- REMOVED New Post Card --- */}
+                    {/* --- "My Progress" Link Card --- */}
+                     <Card 
+                        className="p-4 sm:p-6 shadow-soft space-y-3 hover:shadow-medium transition-shadow cursor-pointer"
+                        onClick={() => navigate("/progress")}
+                    >
+                         <div className="flex items-center justify-between gap-4">
+                            <div className="flex items-center gap-3">
+                                <Avatar>
+                                    <AvatarFallback className="bg-primary text-primary-foreground">
+                                        <BarChart className="w-5 h-5"/>
+                                    </AvatarFallback>
+                                </Avatar>
+                                <div>
+                                    <h3 className="font-semibold text-lg">My Progress</h3>
+                                    <p className="text-muted-foreground text-sm">Post your own updates and track your farm's progress.</p>
+                                </div>
+                            </div>
+                            <Button variant="ghost" size="icon">
+                                <Send className="w-5 h-5 text-primary" />
+                            </Button>
+                         </div>
+                     </Card>
 
 
                     {/* Posts */}
-                    <div className="space-y-4">
+                    <div className="space-y-4 pt-4 border-t">
+                        <h2 className="text-xl font-bold text-foreground">All Posts</h2>
                         {isLoading ? (
                             <div className="flex justify-center py-10">
                                 <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -120,12 +125,10 @@ const Community = () => {
                            </Card>
                         ) : (
                             posts.map((post) => (
-                                <Card key={post.id} className="p-4 sm:p-6 space-y-4 shadow-soft hover:shadow-medium transition-shadow">
+                                <Card key={post.id} className="p-4 sm:p-6 space-y-4 shadow-soft">
                                     {/* Author Info */}
                                     <div className="flex items-center gap-3">
-                                        {/* Use Avatar component */}
                                         <Avatar>
-                                             {/* <AvatarImage src={post.avatar_url} /> */}
                                              <AvatarFallback className="bg-gradient-primary text-primary-foreground text-lg">
                                                 {post.avatar || post.author_name?.charAt(0).toUpperCase()}
                                              </AvatarFallback>
@@ -140,12 +143,11 @@ const Community = () => {
                                     </div>
 
                                     {/* Content */}
-                                    <p className="text-foreground leading-relaxed text-sm sm:text-base">{post.content}</p>
+                                    <p className="text-foreground leading-relaxed text-sm sm:text-base whitespace-pre-wrap">{post.content}</p>
 
                                     {/* Image/Icon */}
                                     {post.image_url && (
                                         <div className="bg-gradient-subtle rounded-lg p-6 sm:p-8 text-center">
-                                            {/* If image_url is an actual URL, use <img>, otherwise treat as emoji */}
                                             {post.image_url.startsWith('http') ? (
                                                 <img src={post.image_url} alt="Post image" className="max-w-full max-h-60 mx-auto rounded"/>
                                             ) : (

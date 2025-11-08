@@ -1,3 +1,6 @@
+/*
+  File: arshedshan/palm-mitra-sih-2025/palm-mitra-sih-2025-9a5f98085db88ae6f7cf3338ebe08844f6cb6035/src/pages/SubsidyCalculator.tsx
+*/
 // src/pages/SubsidyCalculator.tsx
 
 import { useState } from "react";
@@ -7,6 +10,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ArrowLeft, Calculator } from "lucide-react";
+import { toast } from "sonner"; // <-- IMPORT TOAST
 
 const SubsidyCalculator = () => {
   const navigate = useNavigate();
@@ -17,6 +21,15 @@ const SubsidyCalculator = () => {
   const calculateSubsidy = () => {
     const plantsNum = parseInt(plants) || 0;
     const landNum = parseFloat(land) || 0;
+    
+    // --- VALIDATION ADDED ---
+    // Check if both are 0 (or empty)
+    if (plantsNum <= 0 && landNum <= 0) {
+      toast.error("Please enter a valid number of plants or land area.");
+      setResult(null); // Clear previous result
+      return;
+    }
+    // --- END VALIDATION ---
     
     // NMEO-OP scheme calculation (simplified)
     const subsidyPerPlant = 30;

@@ -1,3 +1,6 @@
+/*
+  File: arshedshan/palm-mitra-sih-2025/palm-mitra-sih-2025-9a5f98085db88ae6f7cf3338ebe08844f6cb6035/src/pages/Dashboard.tsx
+*/
 // src/pages/Dashboard.tsx
 
 import { useNavigate } from 'react-router-dom';
@@ -7,7 +10,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
   Users, BookOpen, DollarSign, MessageCircle, TrendingUp, Award,
   MapPin, Sprout, CheckCircle2, User, Loader2, LogOut, CalendarDays, Eye, BarChart,
-  Shield // <-- Added Shield icon
+  Shield, Banknote // <-- Added Banknote
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabaseClient';
@@ -17,10 +20,10 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label"; 
 
 // --- MODIFIED MODULES ARRAY ---
-// (Restored original 6 modules + added your 2 new ones)
+// (Removed 'My Progress', Added 'Micro Finance')
 const modules = [
   {
-    id: "community", icon: Users, label: "Community", description: "Success Stories",
+    id: "community", icon: Users, label: "Community", description: "Success Stories", // <-- Reverted description
     path: "/community", iconBgColor: "bg-[#4285F4]/20", iconColor: "text-[#4285F4]",
   },
   {
@@ -39,16 +42,17 @@ const modules = [
     id: "investors", icon: TrendingUp, label: "Find Investors", description: "Fractional Farming",
     path: "/investors", iconBgColor: "bg-[#E91E63]/20", iconColor: "text-[#E91E63]",
   },
-  {
-    id: "progress", icon: Award, label: "My Progress", description: "Track Growth",
-    path: "/progress", iconBgColor: "bg-[#00BCD4]/20", iconColor: "text-[#00BCD4]",
-  },
   // --- NEW MODULE ---
+  {
+    id: "microfinance", icon: Banknote, label: "Micro Finance", description: "Loan Partners",
+    path: "/micro-finance", iconBgColor: "bg-[#2196F3]/20", iconColor: "text-[#2196F3]",
+  },
+  // --- EXISTING MODULE ---
   {
     id: "insurance", icon: Shield, label: "Protect Harvest", description: "Insurance Plans",
     path: "/protect-harvest", iconBgColor: "bg-[#673AB7]/20", iconColor: "text-[#673AB7]",
   },
-  // --- NEW MODULE ---
+  // --- EXISTING MODULE ---
   {
     id: "subsidies", icon: Award, label: "Govt. Schemes", description: "Subsidies & Benefits",
     path: "/govt-schemes", iconBgColor: "bg-[#795548]/20", iconColor: "text-[#795548]",
