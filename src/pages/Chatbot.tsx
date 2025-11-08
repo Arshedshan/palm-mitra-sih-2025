@@ -4,15 +4,25 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
-import { ArrowLeft, Send, Bot, Loader2 } from "lucide-react"; // Import Loader2
-import { toast } from "sonner";
-import { supabase } from "@/lib/supabaseClient";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"; // Import Avatar
+import { ArrowLeft, Send, Bot, Loader2 } from "lucide-react"; 
+// import { toast } from "sonner"; // No longer needed
+// import { supabase } from "@/lib/supabaseClient"; // No longer needed
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"; 
 
 interface Message {
   role: "user" | "assistant";
   content: string;
 }
+
+// --- NEW: Preset replies for the mock chatbot ---
+const presetReplies = [
+  "That's a great question! For oil palm, it's generally recommended to test your soil every 2 years to check for nutrient deficiencies.",
+  "Intercropping with crops like banana or turmeric can be very profitable during the first 3-4 years of your oil palm's growth.",
+  "Under the NMEO-OP scheme, you might be eligible for subsidies on planting materials and borewells. I recommend checking the official portal.",
+  "For pest control, it's best to use integrated pest management (IPM) techniques. Avoid heavy use of chemical pesticides unless absolutely necessary.",
+  "The ideal spacing for oil palm is typically 9 meters by 9 meters in a triangular pattern. This allows for optimal sunlight and growth."
+];
+// ------------------------------------------------
 
 const Chatbot = () => {
   const navigate = useNavigate();
@@ -25,7 +35,7 @@ const Chatbot = () => {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const [farmerInitial, setFarmerInitial] = useState("🧑‍🌾"); // State for farmer initial/avatar
+  const [farmerInitial, setFarmerInitial] = useState("🧑‍🌾"); 
 
   // Get farmer initial on load
   useEffect(() => {
@@ -45,6 +55,7 @@ const Chatbot = () => {
 
   useEffect(scrollToBottom, [messages]); // Scroll whenever messages change
 
+  // --- MODIFIED handleSend function ---
   const handleSend = async () => {
     const prompt = input.trim();
     if (!prompt) return;
@@ -54,58 +65,28 @@ const Chatbot = () => {
     setInput("");
     setIsLoading(true);
 
-    try {
-        // Prepare request body, including language if available
-        const langCode = localStorage.getItem("selectedLanguage") || 'en';
-        const requestBody = {
-            prompt: prompt,
-            language: langCode // Pass language to the function
-        };
+    // --- MOCK RESPONSE LOGIC ---
+    // Simulate a network delay
+    setTimeout(() => {
+      // Pick a random reply from our preset list
+      const randomReply = presetReplies[Math.floor(Math.random() * presetReplies.length)];
+      
+      const botMessage: Message = {
+        role: "assistant",
+        content: randomReply
+      };
 
-        console.log("Invoking Supabase function 'gemini-bot' with body:", requestBody);
-
-        // Call Supabase function
-        const { data, error } = await supabase.functions.invoke('gemini-bot', {
-            body: JSON.stringify(requestBody),
-            // No Auth header needed if using --no-verify-jwt during deploy and function doesn't require it
-        });
-
-        console.log("Function response:", { data, error });
-
-
-        if (error) {
-            // Handle specific errors if possible
-            if (error instanceof Error && error.message.includes('Function not found')) {
-                 throw new Error("Chatbot function not found. Please ensure it's deployed.");
-            } else if (error instanceof Error && error.message.includes('Failed to fetch')) {
-                 throw new Error("Network error. Could not reach the chatbot service.");
-            }
-             throw error; // Re-throw other errors
-        }
-
-        if (data && data.reply) {
-             setMessages((prev) => [...prev, { role: "assistant", content: data.reply }]);
-        } else if (data && data.error) {
-             // Handle errors returned *from* the function's logic
-             throw new Error(`Chatbot error: ${data.error}`);
-        }
-         else {
-             throw new Error("Received an unexpected response from the chatbot.");
-        }
-
-
-    } catch (error: any) {
-        console.error("Error in handleSend:", error);
-        const errorMessage = error.message || "Sorry, I couldn't get a response. Please check your connection and try again.";
-        toast.error(errorMessage);
-        setMessages((prev) => [...prev, { role: "assistant", content: errorMessage }]);
-    } finally {
-        setIsLoading(false);
-        // Ensure input is re-enabled and focus is returned
-        const inputElement = document.getElementById("chat-input");
-        if(inputElement) inputElement.focus();
-    }
-};
+      setMessages((prev) => [...prev, botMessage]);
+      setIsLoading(false);
+      
+      // Re-focus the input
+      const inputElement = document.getElementById("chat-input");
+      if(inputElement) inputElement.focus();
+      
+    }, 1200); // 1.2-second delay
+    // --- END MOCK RESPONSE LOGIC ---
+  };
+  // ---------------------------------
 
 
   return (
@@ -124,7 +105,8 @@ const Chatbot = () => {
              </Avatar>
             <div>
               <h1 className="text-base sm:text-lg font-bold">Expert Assistant</h1>
-              <p className="text-xs text-muted-foreground">AI Powered by Gemini</p>
+              {/* Updated subtitle */}
+              <p className="text-xs text-muted-foreground">Ask me anything about Oil Palm</p>
             </div>
           </div>
         </div>

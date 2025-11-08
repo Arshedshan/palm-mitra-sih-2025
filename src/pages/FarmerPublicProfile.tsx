@@ -1,15 +1,30 @@
-// Create this file at: src/pages/FarmerPublicProfile.tsx
+// src/pages/FarmerPublicProfile.tsx
 
 import { useState, useEffect } from "react";
-import { useNavigate, useParams, Link } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { ArrowLeft, Loader2, MapPin, Sprout, ShieldCheck, User, CalendarDays, BarChart, DollarSign, Info, CheckCircle, Clock } from "lucide-react";
+import {
+  ArrowLeft, Loader2, MapPin, Sprout, ShieldCheck, User, BarChart, DollarSign,
+  Info, Send, Handshake, XCircle
+} from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabaseClient";
-import { FarmerProfile } from "@/context/AuthContext"; // Re-use FarmerProfile interface
+import { FarmerProfile } from "@/context/AuthContext";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter,
+  DialogClose,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 // Define type for Cultivation data
 interface CultivationRecord {
@@ -20,101 +35,206 @@ interface CultivationRecord {
   yield_amount_tonnes: number | null;
 }
 
+const formatCurrency = (amount: number | null) => {
+    if (amount === null || amount === undefined) return "N/A";
+    return `₹${new Intl.NumberFormat('en-IN', { notation: 'compact', maximumFractionDigits: 1 }).format(amount)}`;
+};
+
 const FarmerPublicProfile = () => {
   const navigate = useNavigate();
-  const { farmerId } = useParams<{ farmerId: string }>(); // Get farmerId from URL
+  const { farmerId } = useParams<{ farmerId: string }>(); 
   
   const [farmer, setFarmer] = useState<FarmerProfile | null>(null);
   const [cultivation, setCultivation] = useState<CultivationRecord[]>([]);
   const [isVerified, setIsVerified] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true); // Starts as true
   const [experience, setExperience] = useState<number>(0);
 
+  const [isOfferDialogOpen, setIsOfferDialogOpen] = useState(false);
+  const [investmentAmount, setInvestmentAmount] = useState("");
+  const [farmMarketValue, setFarmMarketValue] = useState(0);
+  const [projectedFarmValue, setProjectedFarmValue] = useState(0);
+  const [calculatedOffer, setCalculatedOffer] = useState<{
+    stake: number;
+    land: number;
+    projectedReturn: number;
+    projectedProfit: number;
+  } | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false); // Loader for submit
+
+  // --- ROBUST useEffect with try...catch...finally ---
   useEffect(() => {
-    // Mock check for investor session
     const investorSession = localStorage.getItem("investor_session");
     if (!investorSession) {
         toast.error("Please log in as an investor.");
         navigate("/investor-login");
+        setIsLoading(false); // Stop loading
+        return; 
     }
-  }, [navigate]);
 
-  useEffect(() => {
     if (!farmerId) {
       toast.error("No farmer specified.");
-      navigate("/investor-marketplace"); // Go back if no ID
+      navigate("/investor-marketplace");
+      setIsLoading(false); // Stop loading
       return;
     }
 
     const fetchFarmerDetails = async () => {
-      setIsLoading(true);
-
-      // 1. Fetch Farmer Profile
-      const { data: farmerData, error: farmerError } = await supabase
-        .from('farmers')
-        .select('*')
-        .eq('id', farmerId)
-        .eq('is_seeking_investment', true) // Ensure they are still seeking
-        .single();
-        
-      if (farmerError || !farmerData) {
-        toast.error("Could not fetch farmer details or they are no longer seeking investment.");
-        console.error(farmerError);
-        navigate("/investor-marketplace");
-        return;
-      }
-      setFarmer(farmerData as FarmerProfile);
-
-      // 2. Fetch Cultivation Records
-      const { data: cultivationData, error: cultivationError } = await supabase
-        .from('cultivation')
-        .select('*')
-        .eq('farmer_id', farmerId)
-        .order('planting_date', { ascending: true }); // Order by planting date
-        
-      if (!cultivationError && cultivationData) {
-        setCultivation(cultivationData || []);
-        
-        // Calculate experience from earliest planting date
-        const earliestPlantDate = cultivationData[0]?.planting_date;
-        if (earliestPlantDate) {
-            const plantDate = new Date(earliestPlantDate);
-            const today = new Date();
-            const diffTime = today.getTime() - plantDate.getTime();
-            const diffYears = parseFloat((diffTime / (1000 * 60 * 60 * 24 * 365.25)).toFixed(1));
-            setExperience(diffYears > 0 ? diffYears : 0);
+      setIsLoading(true); // Set loading true *before* the async call
+      try {
+        // 1. Fetch Farmer Profile
+        const { data: farmerData, error: farmerError } = await supabase
+          .from('farmers')
+          .select('*')
+          .eq('id', farmerId)
+          .eq('is_seeking_investment', true)
+          .single();
+          
+        if (farmerError || !farmerData) {
+          toast.error("Could not fetch farmer details or they are no longer seeking investment.");
+          console.error(farmerError);
+          navigate("/investor-marketplace");
+          return; // The 'finally' block will still run
         }
-      } // Don't block on this error
-
-      // 3. Fetch Verification Status
-      const { data: verificationData, error: verificationError } = await supabase
-        .from('Green_Ledger')
-        .select('status')
-        .eq('farm_id', farmerId)
-        .eq('status', 'Verified: Deforestation-Free')
-        .limit(1)
-        .single();
         
-      setIsVerified(!!verificationData && !verificationError);
+        // Set state *after* successful fetch
+        setFarmer(farmerData as FarmerProfile);
 
-      setIsLoading(false);
+        // SET MARKET VALUES
+        const landSize = farmerData.land_size || 0;
+        const currentMarketValue = landSize * 150000; 
+        const futureMarketValue = landSize * 400000;  
+        setFarmMarketValue(currentMarketValue);
+        setProjectedFarmValue(futureMarketValue);
+
+        // 2. Fetch Cultivation Records
+        const { data: cultivationData, error: cultivationError } = await supabase
+          .from('cultivation')
+          .select('*')
+          .eq('farmer_id', farmerId)
+          .order('planting_date', { ascending: true });
+          
+        if (!cultivationError && cultivationData) {
+          setCultivation(cultivationData || []);
+          const earliestPlantDate = cultivationData[0]?.planting_date;
+          if (earliestPlantDate) {
+              const plantDate = new Date(earliestPlantDate);
+              const today = new Date();
+              const diffTime = today.getTime() - plantDate.getTime();
+              const diffYears = parseFloat((diffTime / (1000 * 60 * 60 * 24 * 365.25)).toFixed(1));
+              setExperience(diffYears > 0 ? diffYears : 0);
+          }
+        } else if (cultivationError) {
+            console.warn("Could not fetch cultivation data:", cultivationError.message);
+        }
+
+        // 3. Fetch Verification Status
+        const { data: verificationData, error: verificationError } = await supabase
+          .from('Green_Ledger')
+          .select('status')
+          .eq('farm_id', farmerId)
+          .eq('status', 'Verified: Deforestation-Free')
+          .limit(1)
+          .single();
+          
+        if (!verificationError && verificationData) {
+            setIsVerified(true);
+        } else if (verificationError && verificationError.code !== 'PGRST116') { // Ignore "no rows" error
+             console.warn("Could not fetch verification data:", verificationError.message);
+        }
+        
+      } catch (err: any) {
+        console.error("An unexpected error occurred:", err);
+        toast.error(`An unexpected error occurred: ${err.message}`);
+        navigate("/investor-marketplace");
+      } finally {
+        // --- THIS FIX IS CRITICAL ---
+        // This block will run ALWAYS, guaranteeing the loader is removed
+        setIsLoading(false);
+      }
     };
 
     fetchFarmerDetails();
+    
   }, [farmerId, navigate]);
   
-  const handleMakeOffer = () => {
-      // This is where an investor would enter their offer details
-      // For the prototype, we just show a message
-      toast.info("This is where an investor would create an offer (e.g., amount, stake %)", {
-          description: "This would create a new 'investor' record with 'is_available: true' for the farmer to see.",
-          action: {
-              label: "Close",
-              onClick: () => {},
-          },
-          duration: 7000,
+  
+  const handleAmountChange = (value: string) => {
+      const amount = parseFloat(value) || 0;
+      setInvestmentAmount(value);
+
+      if (amount <= 0 || farmMarketValue <= 0 || !farmer) {
+          setCalculatedOffer(null);
+          return;
+      }
+
+      // Calculate stake based on CURRENT market value
+      const stakePercent = (amount / farmMarketValue) * 100;
+      const landShare = (farmer.land_size * stakePercent) / 100;
+      // Calculate return based on PROJECTED market value
+      const projectedReturn = (projectedFarmValue * stakePercent) / 100;
+      const projectedProfit = projectedReturn - amount;
+
+      setCalculatedOffer({
+          stake: stakePercent,
+          land: landShare,
+          projectedReturn: projectedReturn,
+          projectedProfit: projectedProfit
       });
   };
+
+  // --- NEW: Handle final offer submission ---
+  const handleSubmitOffer = async () => {
+    if (!calculatedOffer || !farmer) return;
+    
+    setIsSubmitting(true);
+    const amountNum = parseFloat(investmentAmount);
+
+    try {
+        // 1. Create a new record in the 'investors' table for this offer
+        const { data: newInvestor, error: investorError } = await supabase
+            .from('investors')
+            .insert({
+                investor_name: "Mock Investor", // In a real app, this would be the logged-in investor's name
+                location: "Mock Location",      // And their location
+                amount: amountNum,
+                offer_percent: calculatedOffer.stake,
+                is_available: false, // It's not a public offer
+                duration: "5 Years"  // Mock duration
+            })
+            .select('investor_id')
+            .single();
+
+        if (investorError) throw investorError;
+
+        // 2. Create the 'pending' link for the farmer to approve
+        const { error: linkError } = await supabase
+            .from('farmer_investor_links')
+            .insert({
+                farmer_id: farmer.id, // The farmer being viewed
+                investor_id: newInvestor.investor_id, // The new investor offer ID
+                status: 'pending' // Set status to 'pending'
+            });
+        
+        if (linkError) throw linkError;
+
+        toast.success("Offer Sent!", {
+            description: "The farmer has been notified and can now approve or reject your offer.",
+        });
+
+        // Reset and close dialog
+        setIsOfferDialogOpen(false);
+        setInvestmentAmount("");
+        setCalculatedOffer(null);
+
+    } catch (error: any) {
+        console.error("Error submitting offer:", error);
+        toast.error("Failed to submit offer", { description: error.message });
+    } finally {
+        setIsSubmitting(false);
+    }
+  };
+
 
   if (isLoading) {
     return (
@@ -124,7 +244,10 @@ const FarmerPublicProfile = () => {
     );
   }
 
-  if (!farmer) return null; // Should be covered by loader
+  // This check prevents rendering if loading is done but navigation is pending
+  if (!farmer) {
+    return null; 
+  }
 
   return (
     <div className="min-h-screen bg-gradient-subtle pb-6">
@@ -168,10 +291,72 @@ const FarmerPublicProfile = () => {
                       </div>
                     )}
                  </div>
-                 <Button size="lg" className="w-full sm:w-auto" onClick={handleMakeOffer}>
-                    <DollarSign className="w-5 h-5 mr-2"/>
-                    Make Investment Offer
-                 </Button>
+                 
+                 <Dialog open={isOfferDialogOpen} onOpenChange={setIsOfferDialogOpen}>
+                    <DialogTrigger asChild>
+                         <Button size="lg" className="w-full sm:w-auto">
+                            <DollarSign className="w-5 h-5 mr-2"/>
+                            Make Investment Offer
+                         </Button>
+                    </DialogTrigger>
+                    <DialogContent className="sm:max-w-md">
+                        <DialogHeader>
+                          <DialogTitle className="text-2xl">Make an Investment Offer</DialogTitle>
+                          <DialogDescription>
+                            Farm's current value is approx. {formatCurrency(farmMarketValue)}. 
+                            Projected 5-yr value is {formatCurrency(projectedFarmValue)}.
+                          </DialogDescription>
+                        </DialogHeader>
+                        
+                        <div className="space-y-4 py-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="amount" className="text-base">Investment Amount (₹)</Label>
+                                <Input
+                                  id="amount"
+                                  type="number"
+                                  placeholder="e.g., 50000"
+                                  className="text-lg h-12"
+                                  value={investmentAmount}
+                                  onChange={(e) => handleAmountChange(e.target.value)}
+                                />
+                            </div>
+
+                            {calculatedOffer && (
+                               <Card className="p-4 bg-muted/50 shadow-inner animate-in fade-in duration-300">
+                                   <h4 className="font-semibold mb-3 text-center">Your Offer Details</h4>
+                                   <div className="grid grid-cols-2 gap-3 text-sm">
+                                      <div className="font-medium">Stake Percentage:</div>
+                                      <div className="text-right font-bold text-primary">{calculatedOffer.stake.toFixed(2)}%</div>
+                                      
+                                      <div className="font-medium">Equivalent Land:</div>
+                                      <div className="text-right font-bold">{calculatedOffer.land.toFixed(2)} acres</div>
+                                      
+                                      <div className="font-medium">Est. 5-Yr Return:</div>
+                                      <div className="text-right font-bold text-success">{formatCurrency(calculatedOffer.projectedReturn)}</div>
+                                      
+                                      <div className="font-medium">Est. 5-Yr Profit:</div>
+                                      <div className="text-right font-bold text-success">{formatCurrency(calculatedOffer.projectedProfit)}</div>
+                                   </div>
+                               </Card>
+                            )}
+                        </div>
+
+                        <DialogFooter className="sm:justify-between gap-2">
+                           <DialogClose asChild>
+                             <Button type="button" variant="outline" disabled={isSubmitting}>Cancel</Button>
+                           </DialogClose>
+                           <Button 
+                             type="button" 
+                             variant="success"
+                             disabled={!calculatedOffer || parseFloat(investmentAmount) <= 0 || isSubmitting}
+                             onClick={handleSubmitOffer}
+                           >
+                            {isSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Send className="w-4 h-4 mr-2"/>}
+                            {isSubmitting ? "Sending..." : "Submit Offer"}
+                           </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                 </Dialog>
               </div>
           </Card>
           

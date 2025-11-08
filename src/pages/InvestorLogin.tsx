@@ -22,7 +22,7 @@ const InvestorLogin = () => {
   const handleMockLogin = (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    toast.success("Login successful! Redirecting to Investor Marketplace...");
+    toast.success("Login successful! Redirecting to dashboard...");
     
     // Simulate network delay
     setTimeout(() => {
@@ -30,7 +30,8 @@ const InvestorLogin = () => {
       // For the prototype, we just navigate.
       // We'll use a simple localStorage flag to "protect" the investor routes
       localStorage.setItem("investor_session", "true");
-      navigate('/investor-marketplace');
+      // --- MODIFICATION: Go to new dashboard ---
+      navigate('/investor-dashboard'); 
       setLoading(false);
     }, 1500);
   };
@@ -80,7 +81,6 @@ const InvestorLogin = () => {
         <CardFooter className="flex flex-col items-center">
           <p className="text-sm text-muted-foreground">
             Want to invest?{' '}
-            {/* --- MODIFICATION HERE --- */}
             <Link to="/investor-register" className="font-semibold text-primary hover:underline">
               Register here
             </Link>

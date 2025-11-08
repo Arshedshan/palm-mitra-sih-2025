@@ -11,8 +11,8 @@ import { Loader2 } from "lucide-react";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 // Investor Auth
-import InvestorLogin from "./pages/InvestorLogin"; // --- ADDED ---
-import InvestorRegister from "./pages/InvestorRegister"; // <-- IMPORT NEW PAGE
+import InvestorLogin from "./pages/InvestorLogin";
+import InvestorRegister from "./pages/InvestorRegister"; 
 // Protected Route Guards
 import { ProtectedRoute, ProfileRequiredRoute } from "./components/ProtectedRoute";
 // Farmer Pages
@@ -31,8 +31,9 @@ import MarketPrice from "./pages/MarketPrice";
 import Investors from "./pages/Investors";
 import Progress from "./pages/Progress";
 // Investor Pages
-import InvestorMarketplace from "./pages/InvestorMarketplace"; // --- ADDED ---
-import FarmerPublicProfile from "./pages/FarmerPublicProfile"; // --- ADDED ---
+import InvestorDashboard from "./pages/InvestorDashboard"; // <-- IMPORT NEW PAGE
+import InvestorMarketplace from "./pages/InvestorMarketplace"; 
+import FarmerPublicProfile from "./pages/FarmerPublicProfile"; 
 // General
 import NotFound from "./pages/NotFound";
 
@@ -56,9 +57,9 @@ const AppRoutes = () => {
       <Route path="/" element={<Login />} />
       <Route path="/register" element={<Register />} />
       
-      {/* --- NEW: Public Investor Routes --- */}
+      {/* Public Investor Routes */}
       <Route path="/investor-login" element={<InvestorLogin />} />
-      <Route path="/investor-register" element={<InvestorRegister />} /> {/* <-- ADD THIS ROUTE */}
+      <Route path="/investor-register" element={<InvestorRegister />} />
       
       {/* Routes for logged-in FARMERS who might NOT have a profile yet */}
       <Route element={<ProtectedRoute />}>
@@ -82,8 +83,9 @@ const AppRoutes = () => {
         <Route path="/progress" element={<Progress />} />
       </Route>
       
-      {/* --- NEW: Investor-facing Routes --- */}
+      {/* Investor-facing Routes */}
       {/* For the prototype, these are "mock" protected inside the components */}
+      <Route path="/investor-dashboard" element={<InvestorDashboard />} /> {/* <-- ADD THIS ROUTE */}
       <Route path="/investor-marketplace" element={<InvestorMarketplace />} />
       <Route path="/farmer/:farmerId" element={<FarmerPublicProfile />} />
 
