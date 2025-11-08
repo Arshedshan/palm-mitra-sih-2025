@@ -1,3 +1,6 @@
+/*
+  File: arshedshan/palm-mitra-sih-2025/palm-mitra-sih-2025-9a5f98085db88ae6f7cf3338ebe08844f6cb6035/src/pages/Progress.tsx
+*/
 // src/pages/Progress.tsx
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
@@ -106,22 +109,28 @@ const Progress = () => {
             comments: 0 // Set defaults
         };
 
+        // --- *** THE FIX *** ---
+        // 1. Removed .single()
         const { data, error } = await supabase
             .from('posts')
             .insert(newPostData)
-            .select('*') // <-- FIX: Use select('*')
-            .single();
+            .select('*'); // <-- Select the new row(s)
 
-        if (error) {
+        // 2. Check for error or if data is null/empty
+        if (error || !data || data.length === 0) {
             console.error("Error creating post:", error);
             toast.error("Failed to create post. Please try again.");
-        } else if (data) {
+        } else {
+            // 3. Get the new post from the array (it's the first element)
+            const newPost = data[0]; 
+            
             // Add the new post to the *top* of the displayed list
-            const formattedNewPost: Post = { ...data, time: formatRelativeTime(data.created_at) };
+            const formattedNewPost: Post = { ...newPost, time: formatRelativeTime(newPost.created_at) };
             setMyPosts(prevPosts => [formattedNewPost, ...prevPosts]); // Prepend new post
             setNewPostContent(""); // Clear input
             toast.success("Progress update posted successfully!");
         }
+        // --- *** END OF FIX *** ---
         setIsPosting(false);
     };
 

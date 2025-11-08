@@ -1,12 +1,15 @@
+/*
+  File: arshedshan/palm-mitra-sih-2025/palm-mitra-sih-2025-9a5f98085db88ae6f7cf3338ebe08844f6cb6035/src/pages/Community.tsx
+*/
 // src/pages/Community.tsx
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react"; // <-- Added imports
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { ArrowLeft, Heart, MessageCircle, Share2, Loader2, Image as ImageIcon, Send } from "lucide-react"; // <-- Added imports
+import { ArrowLeft, Heart, MessageCircle, Share2, Loader2 } from "lucide-react"; // <-- Removed Image, Send
 import { supabase } from "@/lib/supabaseClient"; // <-- Import supabase
 import { toast } from "sonner";
-import { Textarea } from "@/components/ui/textarea"; // <-- Import Textarea
+// import { Textarea } from "@/components/ui/textarea"; // <-- Removed Textarea
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"; // <-- Import Avatar
 
 // Define interface for Post data
@@ -29,24 +32,18 @@ const Community = () => {
     const navigate = useNavigate();
     const [posts, setPosts] = useState<Post[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [newPostContent, setNewPostContent] = useState(""); // State for new post
-    const [isPosting, setIsPosting] = useState(false); // State for posting loader
-    const [farmerProfile, setFarmerProfile] = useState<any>({}); // Load profile state
+    // --- REMOVED STATES ---
+    // const [newPostContent, setNewPostContent] = useState(""); 
+    // const [isPosting, setIsPosting] = useState(false); 
+    // const [farmerProfile, setFarmerProfile] = useState<any>({}); 
+    // ---------------------
 
-    // Fetch farmer profile and posts
+
+    // Fetch posts
     useEffect(() => {
-        const fetchProfileAndPosts = async () => {
+        const fetchPosts = async () => { // Renamed function
              setIsLoading(true);
-             // 1. Get farmer profile
-             const storedProfile = localStorage.getItem("farmerProfile");
-             if (storedProfile) {
-                try {
-                    setFarmerProfile(JSON.parse(storedProfile));
-                } catch (e) { console.error("Failed to parse profile"); }
-             } else {
-                 // Handle missing profile - maybe redirect?
-                 console.warn("Profile not found for community page");
-             }
+             // --- REMOVED PROFILE FETCH ---
 
              // 2. Fetch posts
              const { data, error } = await supabase
@@ -70,7 +67,7 @@ const Community = () => {
              }
              setIsLoading(false);
         };
-        fetchProfileAndPosts();
+        fetchPosts(); // Call renamed function
     }, []); // Run once on mount
 
     // Helper function for relative time (Simple version)
@@ -89,48 +86,7 @@ const Community = () => {
     };
 
 
-    // Handle New Post Submission
-    const handlePostSubmit = async () => {
-        if (!newPostContent.trim()) {
-            toast.error("Post content cannot be empty.");
-            return;
-        }
-        if (!farmerProfile.name) {
-             toast.error("Could not identify user profile.");
-             return;
-        }
-
-        setIsPosting(true);
-        const newPostData = {
-            author_name: farmerProfile.name,
-            location: farmerProfile.district || "Unknown Location",
-            avatar: farmerProfile.name?.charAt(0).toUpperCase() || "🧑‍🌾", // Use first initial or default emoji
-            content: newPostContent,
-            time: "Just now", // Placeholder time
-            // Add other fields like image_url if you implement image uploads
-        };
-
-        const { data, error } = await supabase
-            .from('posts')
-            .insert(newPostData)
-            .select()
-            .single(); // Get the newly inserted post back
-
-        if (error) {
-            console.error("Error creating post:", error);
-            toast.error("Failed to create post. Please try again.");
-        } else if (data) {
-            // Add new post to the top of the list (optimistic update)
-             const formattedNewPost = {
-                ...data,
-                time: formatRelativeTime(data.created_at) // Format time correctly
-             };
-            setPosts([formattedNewPost, ...posts]);
-            setNewPostContent(""); // Clear input
-            toast.success("Post created successfully!");
-        }
-        setIsPosting(false);
-    };
+    // --- REMOVED handlePostSubmit function ---
 
 
     return (
@@ -149,35 +105,7 @@ const Community = () => {
                         </div>
                     </div>
 
-                    {/* New Post Card */}
-                     <Card className="p-4 sm:p-6 shadow-soft space-y-3">
-                         <div className="flex items-start gap-3">
-                             <Avatar>
-                                 {/* <AvatarImage src="optional_user_avatar_url" /> */}
-                                 <AvatarFallback className="bg-primary text-primary-foreground">
-                                    {farmerProfile.name?.charAt(0).toUpperCase() || '🧑‍🌾'}
-                                 </AvatarFallback>
-                             </Avatar>
-                             <Textarea
-                                 placeholder="Share your progress or ask a question..."
-                                 value={newPostContent}
-                                 onChange={(e) => setNewPostContent(e.target.value)}
-                                 className="flex-1 min-h-[60px]"
-                                 disabled={isPosting}
-                             />
-                         </div>
-                         <div className="flex justify-between items-center">
-                             {/* Optional: Add image upload button */}
-                             {/* <Button variant="ghost" size="icon" disabled={isPosting}>
-                                <ImageIcon className="w-5 h-5 text-muted-foreground"/>
-                             </Button> */}
-                             <div></div> {/* Spacer */}
-                             <Button onClick={handlePostSubmit} disabled={isPosting || !newPostContent.trim()}>
-                                 {isPosting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
-                                 <span className="ml-2">{isPosting ? "Posting..." : "Post"}</span>
-                             </Button>
-                         </div>
-                     </Card>
+                    {/* --- REMOVED New Post Card --- */}
 
 
                     {/* Posts */}
