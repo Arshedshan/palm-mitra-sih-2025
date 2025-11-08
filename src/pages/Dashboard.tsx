@@ -1,4 +1,3 @@
-// src/pages/Dashboard.tsx
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -75,10 +74,14 @@ const Dashboard = () => {
       setLoadingStats(true);
       const totalLand = profile.land_size || 0;
       
+      // --- THIS IS THE FIX ---
+      // We only select links where the status is 'approved'
       const getInvestorStats = supabase
         .from('farmer_investor_links')
         .select(`investors ( offer_percent, amount )`)
-        .eq('farmer_id', profile.id);
+        .eq('farmer_id', profile.id)
+        .eq('status', 'approved'); // <-- ADD THIS LINE
+      // ----------------------
 
       const getCultivationData = supabase
         .from('cultivation')
@@ -107,6 +110,7 @@ const Dashboard = () => {
               remainingLand: totalLand,
               availableStake: 100,
           };
+          // This logic is now correct, as it only receives *approved* investors
           if (!investorResult.error && investorResult.data) {
               const typedData = investorResult.data as unknown as LinkedInvestor[];
               const totalStake = typedData.reduce((sum, link) => sum + (link.investors?.offer_percent || 0), 0);
@@ -315,11 +319,7 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* --- Module Grid & Toggle (NO OVERLAP) --- */}
-      {/* MODIFICATION:
-        - Removed "-mt-8", "relative", and "z-20"
-        - Added "mt-6" to create space *below* the green banner
-      */}
+      {/* --- Module Grid & Toggle --- */}
       <div className="container mx-auto max-w-4xl mt-6 px-4 sm:px-0">
          {/* --- Toggle Switch --- */}
          <Card className="p-4 sm:p-6 shadow-medium bg-card mb-4 flex flex-col sm:flex-row items-center justify-between gap-3 rounded-2xl">

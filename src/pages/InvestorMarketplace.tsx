@@ -1,13 +1,12 @@
-// Create this file at: src/pages/InvestorMarketplace.tsx
-
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { ArrowLeft, Loader2, MapPin, Sprout, ShieldCheck, User, BarChart } from "lucide-react";
+import { ArrowLeft, Loader2, MapPin, Sprout, ShieldCheck, User, BarChart, LogOut } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabaseClient";
+import { useInvestorAuth } from "@/context/InvestorAuthContext"; // <-- Import auth
 
 // Define a type for the farmer data we're fetching
 interface FarmerListing {
@@ -23,15 +22,10 @@ const InvestorMarketplace = () => {
   const navigate = useNavigate();
   const [farmers, setFarmers] = useState<FarmerListing[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const { logout } = useInvestorAuth(); // <-- Use auth context
 
-  // Mock check for investor session
-  useEffect(() => {
-    const investorSession = localStorage.getItem("investor_session");
-    if (!investorSession) {
-        toast.error("Please log in as an investor to view the marketplace.");
-        navigate("/investor-login");
-    }
-  }, [navigate]);
+  // The localStorage check is no longer needed here
+  // The InvestorProtectedRoute component handles authentication
 
   useEffect(() => {
     const fetchWillingFarmers = async () => {
@@ -57,14 +51,13 @@ const InvestorMarketplace = () => {
       }
 
       // 2. Fetch cultivation and verification data for all these farmers
-      // This is a more efficient approach than N+1 queries
       const farmerIds = farmerData.map(f => f.id);
 
       const { data: cultivationData, error: cultivationError } = await supabase
         .from('cultivation')
         .select('farmer_id, planting_date')
         .in('farmer_id', farmerIds)
-        .order('planting_date', { ascending: true }); // Get earliest planting date
+        .order('planting_date', { ascending: true }); 
 
       const { data: ledgerData, error: ledgerError } = await supabase
         .from('Green_Ledger')
@@ -78,10 +71,9 @@ const InvestorMarketplace = () => {
       // 3. Process the data into maps for easy lookup
       const cultivationMap = new Map<string, number>(); // Map<farmer_id, experience_years>
       if (cultivationData) {
-          // Get the *earliest* planting date for each farmer
           const earliestPlanting: Record<string, string> = {};
           for (const record of cultivationData) {
-              if (!earliestPlanting[record.farmer_id]) {
+              if (record.planting_date && !earliestPlanting[record.farmer_id]) {
                   earliestPlanting[record.farmer_id] = record.planting_date;
               }
           }
@@ -101,7 +93,7 @@ const InvestorMarketplace = () => {
       const farmersWithStatus = farmerData.map(farmer => ({
         ...farmer,
         is_verified: verifiedSet.has(farmer.id),
-        experience_years: cultivationMap.get(farmer.id) || 0, // Default to 0 if no planting date
+        experience_years: cultivationMap.get(farmer.id) || 0, // Default to 0
       }));
 
       setFarmers(farmersWithStatus);
@@ -111,8 +103,8 @@ const InvestorMarketplace = () => {
     fetchWillingFarmers();
   }, []);
 
-  const handleLogout = () => {
-      localStorage.removeItem("investor_session");
+  const handleLogout = async () => {
+      await logout();
       navigate("/investor-login");
   };
 
@@ -123,7 +115,7 @@ const InvestorMarketplace = () => {
           {/* Header */}
           <div className="flex items-center justify-between">
              <div className="flex items-center gap-2 sm:gap-4">
-                 <Button variant="ghost" size="icon" onClick={() => navigate(-1)}> {/* Go back */}
+                 <Button variant="ghost" size="icon" onClick={() => navigate("/investor-dashboard")}> {/* Go back to dash */}
                    <ArrowLeft className="w-5 h-5" />
                  </Button>
                  <div>
@@ -131,7 +123,7 @@ const InvestorMarketplace = () => {
                      <p className="text-muted-foreground text-sm sm:text-base">Browse farmers seeking investment</p>
                  </div>
              </div>
-             <Button variant="outline" onClick={handleLogout}>Logout</Button>
+             <Button variant="ghost" onClick={handleLogout}>Logout <LogOut className="w-4 h-4 ml-2"/></Button>
           </div>
           
           {/* Farmer List */}

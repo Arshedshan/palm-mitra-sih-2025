@@ -15,6 +15,7 @@ import InvestorLogin from "./pages/InvestorLogin";
 import InvestorRegister from "./pages/InvestorRegister"; 
 // Protected Route Guards
 import { ProtectedRoute, ProfileRequiredRoute } from "./components/ProtectedRoute";
+import { InvestorProtectedRoute } from "./components/InvestorProtectedRoute"; // <-- IMPORT NEW
 // Farmer Pages
 import Language from "./pages/Language";
 import Onboarding from "./pages/Onboarding";
@@ -31,7 +32,7 @@ import MarketPrice from "./pages/MarketPrice";
 import Investors from "./pages/Investors";
 import Progress from "./pages/Progress";
 // Investor Pages
-import InvestorDashboard from "./pages/InvestorDashboard"; // <-- IMPORT NEW PAGE
+import InvestorDashboard from "./pages/InvestorDashboard";
 import InvestorMarketplace from "./pages/InvestorMarketplace"; 
 import FarmerPublicProfile from "./pages/FarmerPublicProfile"; 
 // General
@@ -41,9 +42,10 @@ import NotFound from "./pages/NotFound";
 const queryClient = new QueryClient();
 
 const AppRoutes = () => {
-  const { loading } = useAuth();
+  // We use the farmer auth loading for the main app loader
+  const { loading: farmerAuthLoading } = useAuth();
 
-  if (loading) {
+  if (farmerAuthLoading) {
      return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-subtle">
         <Loader2 className="w-12 h-12 animate-spin text-primary" />
@@ -53,22 +55,21 @@ const AppRoutes = () => {
 
   return (
     <Routes>
-      {/* Public Farmer Routes */}
+      {/* --- Public Farmer Routes --- */}
       <Route path="/" element={<Login />} />
       <Route path="/register" element={<Register />} />
       
-      {/* Public Investor Routes */}
+      {/* --- Public Investor Routes --- */}
       <Route path="/investor-login" element={<InvestorLogin />} />
       <Route path="/investor-register" element={<InvestorRegister />} />
       
-      {/* Routes for logged-in FARMERS who might NOT have a profile yet */}
+      {/* --- FARMER Protected Routes --- */}
       <Route element={<ProtectedRoute />}>
         <Route path="/language" element={<Language />} /> 
         <Route path="/onboarding" element={<Onboarding />} />
         <Route path="/verification" element={<Verification />} />
       </Route>
       
-      {/* Routes that require a FARMER to be logged in AND have a profile */}
       <Route element={<ProfileRequiredRoute />}>
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/chatbot" element={<Chatbot />} />
@@ -83,11 +84,13 @@ const AppRoutes = () => {
         <Route path="/progress" element={<Progress />} />
       </Route>
       
-      {/* Investor-facing Routes */}
-      {/* For the prototype, these are "mock" protected inside the components */}
-      <Route path="/investor-dashboard" element={<InvestorDashboard />} /> {/* <-- ADD THIS ROUTE */}
-      <Route path="/investor-marketplace" element={<InvestorMarketplace />} />
-      <Route path="/farmer/:farmerId" element={<FarmerPublicProfile />} />
+      {/* --- INVESTOR Protected Routes --- */}
+      {/* All investor pages are wrapped in the new protected route */}
+      <Route element={<InvestorProtectedRoute />}>
+        <Route path="/investor-dashboard" element={<InvestorDashboard />} />
+        <Route path="/investor-marketplace" element={<InvestorMarketplace />} />
+        <Route path="/farmer/:farmerId" element={<FarmerPublicProfile />} />
+      </Route>
 
       {/* Catch-all Not Found Route */}
       <Route path="*" element={<NotFound />} />

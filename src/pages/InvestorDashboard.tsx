@@ -1,5 +1,3 @@
-// Create this new file: src/pages/InvestorDashboard.tsx
-
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -11,7 +9,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabaseClient";
-import { FarmerProfile } from "@/context/AuthContext"; // Re-use FarmerProfile interface
+import { FarmerProfile } from "@/context/AuthContext";
+import { useInvestorAuth } from "@/context/InvestorAuthContext"; // <-- IMPORT NEW AUTH
 
 // Interface for investor data (from 'investors' table)
 interface InvestorData {
@@ -21,6 +20,7 @@ interface InvestorData {
   amount: number | null;
   offer_percent: number;
   duration: string | null;
+  user_id: string; // <-- The investor's auth user ID
 }
 
 // Interface for cultivation data
@@ -42,7 +42,6 @@ interface ApprovedInvestment {
 // Helper
 const formatCurrency = (amount: number | null) => {
     if (amount === null || amount === undefined) return "N/A";
-    // Use 'en-IN' for Indian Rupee formatting
     return `₹${new Intl.NumberFormat('en-IN', { notation: 'compact', maximumFractionDigits: 1 }).format(amount)}`;
 };
 
@@ -50,21 +49,21 @@ const InvestorDashboard = () => {
   const navigate = useNavigate();
   const [investments, setInvestments] = useState<ApprovedInvestment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const { user, profile, logout, loading: authLoading } = useInvestorAuth(); // <-- USE NEW AUTH
 
   useEffect(() => {
-    // 1. Auth Check
-    const investorSession = localStorage.getItem("investor_session");
-    if (!investorSession) {
-        toast.error("Please log in as an investor.");
-        navigate("/investor-login");
+    // Wait for auth to be ready
+    if (authLoading || !user) {
         return;
     }
 
-    // 2. Fetch all approved links for this investor
-    // Since login is mock, we fetch *all* approved links.
-    // In a real app, you'd filter by investor_id.
+    // 2. Fetch all approved links for THIS investor
     const fetchApprovedInvestments = async () => {
         setIsLoading(true);
+        
+        // --- THIS QUERY IS NOW FILTERED ---
+        // We find all 'investors' (offers) created by this user
+        // and then join to the links and farmers
         const { data: linksData, error: linksError } = await supabase
             .from('farmer_investor_links')
             .select(`
@@ -74,7 +73,8 @@ const InvestorDashboard = () => {
                 farmers ( * ),
                 investors ( * )
             `)
-            .eq('status', 'approved'); // Only get approved investments
+            .eq('status', 'approved')
+            .eq('investors.user_id', user.id); // <-- Filter by logged-in user!
 
         if (linksError) {
             toast.error("Failed to fetch your investments.");
@@ -125,14 +125,14 @@ const InvestorDashboard = () => {
 
     fetchApprovedInvestments();
 
-  }, [navigate]);
+  }, [user, authLoading, navigate]);
 
-  const handleLogout = () => {
-      localStorage.removeItem("investor_session");
-      navigate("/investor-login");
+  const handleLogout = async () => {
+      await logout();
+      navigate("/investor-login"); // Navigate after logout
   };
 
-  // --- Calculation Functions ---
+  // --- Calculation Functions (no change) ---
   const getCalculations = (farmer: FarmerProfile, investor: InvestorData, cultivation: CultivationData | null) => {
       const landSize = farmer.land_size || 0;
       const stake = investor.offer_percent || 0;
@@ -147,7 +147,7 @@ const InvestorDashboard = () => {
       let daysToHarvest: number | null = null;
       if (cultivation?.status === 'Gestation' && cultivation?.planting_date) {
             const plantDate = new Date(cultivation.planting_date);
-            const gestationPeriodDays = 3.5 * 365.25; // ~1278 days
+            const gestationPeriodDays = 3.5 * 365.25;
             const firstHarvestDate = new Date(plantDate.getTime() + gestationPeriodDays * 24 * 60 * 60 * 1000);
             const timeToHarvest = firstHarvestDate.getTime() - new Date().getTime();
             daysToHarvest = Math.max(0, Math.ceil(timeToHarvest / (1000 * 60 * 60 * 24)));
@@ -157,6 +157,14 @@ const InvestorDashboard = () => {
   };
 
   // --- Main Render ---
+  if (authLoading || isLoading) {
+     return (
+        <div className="min-h-screen flex items-center justify-center bg-gradient-subtle">
+          <Loader2 className="w-12 h-12 animate-spin text-primary" />
+        </div>
+     );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-subtle pb-6">
       <div className="container mx-auto p-4 sm:p-6 max-w-4xl">
@@ -167,7 +175,8 @@ const InvestorDashboard = () => {
                  <Building className="w-8 h-8 text-primary" />
                  <div>
                      <h1 className="text-2xl sm:text-3xl font-bold">My Investments</h1>
-                     <p className="text-muted-foreground text-sm sm:text-base">Track your active farmer partnerships</p>
+                     {/* Show investor name */}
+                     <p className="text-muted-foreground text-sm sm:text-base">Welcome, {profile?.name || 'Investor'}!</p>
                  </div>
              </div>
              <div className="flex gap-2">
@@ -180,9 +189,7 @@ const InvestorDashboard = () => {
           
           {/* Investment List */}
           <div className="space-y-4">
-             {isLoading ? (
-                 <Card className="p-10 flex justify-center items-center rounded-xl"> <Loader2 className="w-8 h-8 animate-spin text-primary" /> </Card>
-             ) : investments.length === 0 ? (
+             {investments.length === 0 ? (
                  <Card className="p-10 text-center text-muted-foreground rounded-xl"> 
                     You have no active investments. Visit the marketplace to find farmers.
                  </Card>
@@ -224,6 +231,7 @@ const InvestorDashboard = () => {
                                 <div>
                                     <p className="text-xs sm:text-sm text-muted-foreground mb-1">Your Investment</p>
                                     <p className="font-bold text-sm sm:text-lg text-accent">{formatCurrency(investor.amount)}</p>
+
                                 </div>
                                 <div>
                                     <p className="text-xs sm:text-sm text-muted-foreground mb-1">Your Stake</p>

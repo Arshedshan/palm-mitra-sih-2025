@@ -1,6 +1,4 @@
-// src/pages/InvestorLogin.tsx
-
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,33 +6,59 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { Loader2, Building } from 'lucide-react';
-import { supabase } from '@/lib/supabaseClient'; // Import Supabase
+import { supabase } from '@/lib/supabaseClient';
+import { useInvestorAuth } from '@/context/InvestorAuthContext'; // <-- Import new auth
 
-// This can be a MOCK login, or you can use Supabase auth
-// For this demo, we'll use a MOCK login for simplicity
 const InvestorLogin = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const { session, loading: authLoading } = useInvestorAuth(); // <-- Use new auth
 
-  // --- MOCK LOGIN HANDLER ---
-  const handleMockLogin = (e: React.FormEvent) => {
+  // Redirect if already logged in
+  useEffect(() => {
+    if (!authLoading && session) {
+      navigate('/investor-dashboard');
+    }
+  }, [session, authLoading, navigate]);
+
+  // --- UPDATED: Real Login Handler ---
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    toast.success("Login successful! Redirecting to dashboard...");
-    
-    // Simulate network delay
-    setTimeout(() => {
-      // In a real app, you'd save an investor session.
-      // For the prototype, we just navigate.
-      // We'll use a simple localStorage flag to "protect" the investor routes
-      localStorage.setItem("investor_session", "true");
-      // --- MODIFICATION: Go to new dashboard ---
-      navigate('/investor-dashboard'); 
+
+    try {
+      // Use Supabase auth.signInWithPassword
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email,
+        password: password,
+      });
+
+      if (error) throw error; // Shows "Invalid login credentials"
+
+      if (data.user) {
+        // SUCCESS!
+        toast.success("Login successful! Redirecting to dashboard...");
+        // No localStorage needed, the AuthProvider will handle it
+        navigate('/investor-dashboard');
+      }
+
+    } catch (error: any) {
+      toast.error(error.message);
+    } finally {
       setLoading(false);
-    }, 1500);
+    }
   };
+  
+  // Show loader if auth is still checking
+  if (authLoading || session) {
+     return (
+        <div className="min-h-screen flex items-center justify-center bg-gradient-subtle">
+            <Loader2 className="w-12 h-12 animate-spin text-primary" />
+        </div>
+     );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-subtle flex items-center justify-center p-4">
@@ -48,9 +72,9 @@ const InvestorLogin = () => {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleMockLogin} className="space-y-6">
+          <form onSubmit={handleLogin} className="space-y-6">
             <div className="space-y-2">
-              <Label htmlFor="email">Email (any email)</Label>
+              <Label htmlFor="email">Email</Label>
               <Input 
                 id="email" 
                 type="email" 
@@ -62,7 +86,7 @@ const InvestorLogin = () => {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password">Password (any password)</Label>
+              <Label htmlFor="password">Password</Label>
               <Input 
                 id="password" 
                 type="password" 

@@ -1,5 +1,3 @@
-// src/pages/FarmerPublicProfile.tsx
-
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -25,6 +23,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useInvestorAuth } from "@/context/InvestorAuthContext"; // <-- IMPORT NEW AUTH
 
 // Define type for Cultivation data
 interface CultivationRecord {
@@ -47,7 +46,7 @@ const FarmerPublicProfile = () => {
   const [farmer, setFarmer] = useState<FarmerProfile | null>(null);
   const [cultivation, setCultivation] = useState<CultivationRecord[]>([]);
   const [isVerified, setIsVerified] = useState(false);
-  const [isLoading, setIsLoading] = useState(true); // Starts as true
+  const [isLoading, setIsLoading] = useState(true); 
   const [experience, setExperience] = useState<number>(0);
 
   const [isOfferDialogOpen, setIsOfferDialogOpen] = useState(false);
@@ -60,29 +59,29 @@ const FarmerPublicProfile = () => {
     projectedReturn: number;
     projectedProfit: number;
   } | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false); // Loader for submit
+  const [isSubmitting, setIsSubmitting] = useState(false); 
+  
+  // --- USE NEW AUTH ---
+  const { profile: investorProfile, loading: investorAuthLoading } = useInvestorAuth();
 
-  // --- ROBUST useEffect with try...catch...finally ---
   useEffect(() => {
-    const investorSession = localStorage.getItem("investor_session");
-    if (!investorSession) {
-        toast.error("Please log in as an investor.");
-        navigate("/investor-login");
-        setIsLoading(false); // Stop loading
-        return; 
+    // Wait for auth to finish before checking for farmerId
+    if (investorAuthLoading) {
+        setIsLoading(true);
+        return;
     }
-
+    
+    // We are now protected by the InvestorProtectedRoute, so no need for localStorage check
+    
     if (!farmerId) {
       toast.error("No farmer specified.");
       navigate("/investor-marketplace");
-      setIsLoading(false); // Stop loading
       return;
     }
 
     const fetchFarmerDetails = async () => {
-      setIsLoading(true); // Set loading true *before* the async call
+      setIsLoading(true);
       try {
-        // 1. Fetch Farmer Profile
         const { data: farmerData, error: farmerError } = await supabase
           .from('farmers')
           .select('*')
@@ -94,20 +93,16 @@ const FarmerPublicProfile = () => {
           toast.error("Could not fetch farmer details or they are no longer seeking investment.");
           console.error(farmerError);
           navigate("/investor-marketplace");
-          return; // The 'finally' block will still run
+          return;
         }
         
-        // Set state *after* successful fetch
         setFarmer(farmerData as FarmerProfile);
-
-        // SET MARKET VALUES
         const landSize = farmerData.land_size || 0;
         const currentMarketValue = landSize * 150000; 
         const futureMarketValue = landSize * 400000;  
         setFarmMarketValue(currentMarketValue);
         setProjectedFarmValue(futureMarketValue);
 
-        // 2. Fetch Cultivation Records
         const { data: cultivationData, error: cultivationError } = await supabase
           .from('cultivation')
           .select('*')
@@ -128,7 +123,6 @@ const FarmerPublicProfile = () => {
             console.warn("Could not fetch cultivation data:", cultivationError.message);
         }
 
-        // 3. Fetch Verification Status
         const { data: verificationData, error: verificationError } = await supabase
           .from('Green_Ledger')
           .select('status')
@@ -139,7 +133,7 @@ const FarmerPublicProfile = () => {
           
         if (!verificationError && verificationData) {
             setIsVerified(true);
-        } else if (verificationError && verificationError.code !== 'PGRST116') { // Ignore "no rows" error
+        } else if (verificationError && verificationError.code !== 'PGRST116') {
              console.warn("Could not fetch verification data:", verificationError.message);
         }
         
@@ -148,15 +142,13 @@ const FarmerPublicProfile = () => {
         toast.error(`An unexpected error occurred: ${err.message}`);
         navigate("/investor-marketplace");
       } finally {
-        // --- THIS FIX IS CRITICAL ---
-        // This block will run ALWAYS, guaranteeing the loader is removed
         setIsLoading(false);
       }
     };
 
     fetchFarmerDetails();
     
-  }, [farmerId, navigate]);
+  }, [farmerId, navigate, investorAuthLoading]); // <-- Add auth loading dependency
   
   
   const handleAmountChange = (value: string) => {
@@ -168,10 +160,8 @@ const FarmerPublicProfile = () => {
           return;
       }
 
-      // Calculate stake based on CURRENT market value
       const stakePercent = (amount / farmMarketValue) * 100;
       const landShare = (farmer.land_size * stakePercent) / 100;
-      // Calculate return based on PROJECTED market value
       const projectedReturn = (projectedFarmValue * stakePercent) / 100;
       const projectedProfit = projectedReturn - amount;
 
@@ -183,37 +173,41 @@ const FarmerPublicProfile = () => {
       });
   };
 
-  // --- NEW: Handle final offer submission ---
   const handleSubmitOffer = async () => {
-    if (!calculatedOffer || !farmer) return;
+    // --- USE REAL INVESTOR DATA ---
+    if (!calculatedOffer || !farmer || !investorProfile) {
+        toast.error("Investor profile not found. Please log in again.");
+        return;
+    }
     
     setIsSubmitting(true);
     const amountNum = parseFloat(investmentAmount);
 
     try {
-        // 1. Create a new record in the 'investors' table for this offer
+        // 1. Create a new record in the 'investors' table
         const { data: newInvestor, error: investorError } = await supabase
             .from('investors')
             .insert({
-                investor_name: "Mock Investor", // In a real app, this would be the logged-in investor's name
-                location: "Mock Location",      // And their location
+                user_id: investorProfile.user_id, // <-- Use real investor user ID
+                investor_name: investorProfile.name, // <-- Use real investor name
+                location: "Investor Location", // TODO: Add location to investor_profiles
                 amount: amountNum,
                 offer_percent: calculatedOffer.stake,
-                is_available: false, // It's not a public offer
-                duration: "5 Years"  // Mock duration
+                is_available: false, 
+                duration: "5 Years"
             })
             .select('investor_id')
             .single();
 
         if (investorError) throw investorError;
 
-        // 2. Create the 'pending' link for the farmer to approve
+        // 2. Create the 'pending' link
         const { error: linkError } = await supabase
             .from('farmer_investor_links')
             .insert({
-                farmer_id: farmer.id, // The farmer being viewed
-                investor_id: newInvestor.investor_id, // The new investor offer ID
-                status: 'pending' // Set status to 'pending'
+                farmer_id: farmer.id, 
+                investor_id: newInvestor.investor_id,
+                status: 'pending'
             });
         
         if (linkError) throw linkError;
@@ -222,7 +216,6 @@ const FarmerPublicProfile = () => {
             description: "The farmer has been notified and can now approve or reject your offer.",
         });
 
-        // Reset and close dialog
         setIsOfferDialogOpen(false);
         setInvestmentAmount("");
         setCalculatedOffer(null);
@@ -236,7 +229,7 @@ const FarmerPublicProfile = () => {
   };
 
 
-  if (isLoading) {
+  if (isLoading || investorAuthLoading) { // <-- Check both loaders
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-subtle">
         <Loader2 className="w-12 h-12 animate-spin text-primary" />
@@ -244,7 +237,6 @@ const FarmerPublicProfile = () => {
     );
   }
 
-  // This check prevents rendering if loading is done but navigation is pending
   if (!farmer) {
     return null; 
   }
