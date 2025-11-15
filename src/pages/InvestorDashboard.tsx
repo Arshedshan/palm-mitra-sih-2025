@@ -1,289 +1,248 @@
+/*
+  File: arshedshan/palm-mitra-sih-2025/palm-mitra-sih-2025-9a5f98085db88ae6f7cf3338ebe08844f6cb6035/src/pages/InvestorDashboard.tsx
+*/
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom"; 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
-  ArrowLeft, Loader2, MapPin, Sprout, ShieldCheck, User, CalendarDays, BarChart, 
-  DollarSign, Info, CheckCircle, Clock, TrendingUp, Building, LogOut, Store
+  Loader2, LogOut, User, BarChart, DollarSign, Sprout, MapPin, Search
 } from "lucide-react";
-import { toast } from "sonner";
+import { useInvestorAuth } from "@/context/InvestorAuthContext"; 
 import { supabase } from "@/lib/supabaseClient";
-import { FarmerProfile } from "@/context/AuthContext";
-import { useInvestorAuth } from "@/context/InvestorAuthContext"; // <-- IMPORT NEW AUTH
+import { toast } from "sonner";
+import { Input } from "@/components/ui/input";
 
-// Interface for investor data (from 'investors' table)
-interface InvestorData {
-  investor_id: string;
-  investor_name: string;
-  location: string | null;
-  amount: number | null;
+// --- Types ---
+interface LinkedFarm {
+  farmer_id: string; 
+  name: string;
+  district: string;
+  land_size: number;
+  amount: number;
   offer_percent: number;
-  duration: string | null;
-  user_id: string; // <-- The investor's auth user ID
 }
 
-// Interface for cultivation data
-interface CultivationData {
-  planting_date: string | null;
-  status: string | null;
-}
-
-// Combined interface for an approved investment
-interface ApprovedInvestment {
-    link_id: string;
-    approved_at: string | null;
-    status: 'approved';
-    farmers: FarmerProfile | null;     // Joined Farmer details
-    investors: InvestorData | null;  // Joined Investor details
-    cultivation: CultivationData | null; // Manually fetched cultivation data
-}
-
-// Helper
 const formatCurrency = (amount: number | null) => {
     if (amount === null || amount === undefined) return "N/A";
     return `₹${new Intl.NumberFormat('en-IN', { notation: 'compact', maximumFractionDigits: 1 }).format(amount)}`;
 };
 
 const InvestorDashboard = () => {
-  const navigate = useNavigate();
-  const [investments, setInvestments] = useState<ApprovedInvestment[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const { user, profile, logout, loading: authLoading } = useInvestorAuth(); // <-- USE NEW AUTH
+  const navigate = useNavigate(); 
+  const { profile, loading: authLoading, logout } = useInvestorAuth();
+  
+  const [stats, setStats] = useState({
+      totalInvested: 0,
+      totalStake: 0,
+      projectedReturn: 0,
+      farmsLinked: 0,
+  });
+  const [linkedFarms, setLinkedFarms] = useState<LinkedFarm[]>([]);
+  const [loadingStats, setLoadingStats] = useState(true);
 
   useEffect(() => {
-    // Wait for auth to be ready
-    if (authLoading || !user) {
-        return;
+    if (authLoading) return; 
+    if (!profile) {
+      navigate('/investor-login');
+      return;
     }
+    
+    setLoadingStats(true);
+    
+    const fetchDashboardData = async () => {
+        try {
+            const { data: links, error: linksError } = await supabase
+                .from('farmer_investor_links')
+                .select(`
+                    status,
+                    farmers ( id, name, district, land_size ),
+                    investors ( amount, offer_percent )
+                `)
+                .eq('investors.user_id', profile.user_id) 
+                .eq('status', 'approved');
 
-    // 2. Fetch all approved links for THIS investor
-    const fetchApprovedInvestments = async () => {
-        setIsLoading(true);
-        
-        // --- THIS QUERY IS NOW FILTERED ---
-        // We find all 'investors' (offers) created by this user
-        // and then join to the links and farmers
-        const { data: linksData, error: linksError } = await supabase
-            .from('farmer_investor_links')
-            .select(`
-                link_id,
-                approved_at,
-                status,
-                farmers ( * ),
-                investors ( * )
-            `)
-            .eq('status', 'approved')
-            .eq('investors.user_id', user.id); // <-- Filter by logged-in user!
+            if (linksError) throw linksError;
 
-        if (linksError) {
-            toast.error("Failed to fetch your investments.");
-            console.error(linksError);
-            setIsLoading(false);
-            return;
-        }
+            let totalInvested = 0;
+            let totalStake = 0;
+            const farms: LinkedFarm[] = [];
 
-        if (!linksData) {
-            setInvestments([]);
-            setIsLoading(false);
-            return;
-        }
+            if (links) {
+                 links.forEach(link => {
+                    const farm = link.farmers as any; 
+                    const investment = link.investors as any; 
 
-        // 3. For each link, fetch the farmer's cultivation data
-        const investmentsWithCultivation: ApprovedInvestment[] = await Promise.all(
-            linksData.map(async (link) => {
-                const farmer = link.farmers as FarmerProfile | null;
-                let cultivationData: CultivationData | null = null;
+                    if (farm && investment) {
+                        const investedAmount = investment.amount || 0;
+                        const stake = investment.offer_percent || 0;
 
-                if (farmer) {
-                    const { data: cultData, error: cultError } = await supabase
-                        .from('cultivation')
-                        .select('planting_date, status')
-                        .eq('farmer_id', farmer.id)
-                        .order('planting_date', { ascending: true })
-                        .limit(1)
-                        .single();
-                    
-                    if (!cultError) {
-                        cultivationData = cultData;
+                        totalInvested += investedAmount;
+                        totalStake += stake;
+                        
+                        farms.push({
+                            farmer_id: farm.id,
+                            name: farm.name,
+                            district: farm.district,
+                            land_size: farm.land_size,
+                            amount: investedAmount,
+                            offer_percent: stake
+                        });
                     }
-                }
-                
-                return {
-                    ...link,
-                    farmers: farmer,
-                    investors: link.investors as InvestorData | null,
-                    cultivation: cultivationData,
-                    status: 'approved' // Ensure correct type
-                };
-            })
-        );
-        
-        setInvestments(investmentsWithCultivation.filter(inv => inv.farmers && inv.investors));
-        setIsLoading(false);
+                });
+            }
+            
+            const projectedReturn = totalInvested * 2.5; 
+
+            setStats({
+                totalInvested: totalInvested,
+                totalStake: totalStake,
+                projectedReturn: projectedReturn,
+                farmsLinked: farms.length,
+            });
+            setLinkedFarms(farms);
+
+        } catch (error: any) {
+            console.error("Error fetching dashboard data:", error);
+            toast.error("Failed to load dashboard data.", { description: error.message });
+        } finally {
+            setLoadingStats(false);
+        }
     };
+    
+    fetchDashboardData();
 
-    fetchApprovedInvestments();
-
-  }, [user, authLoading, navigate]);
+  }, [profile, authLoading, navigate]);
 
   const handleLogout = async () => {
-      await logout();
-      navigate("/investor-login"); // Navigate after logout
+    toast.info("Logging out...");
+    await logout();
+    navigate('/investor-login');
   };
 
-  // --- Calculation Functions (no change) ---
-  const getCalculations = (farmer: FarmerProfile, investor: InvestorData, cultivation: CultivationData | null) => {
-      const landSize = farmer.land_size || 0;
-      const stake = investor.offer_percent || 0;
-      
-      const currentMarketValue = landSize * 150000;
-      const projectedMarketValue = landSize * 400000;
-      
-      const yourStakeValue = (currentMarketValue * stake) / 100;
-      const yourProjectedValue = (projectedMarketValue * stake) / 100;
-      const yourProfit = yourProjectedValue - (investor.amount || 0);
-
-      let daysToHarvest: number | null = null;
-      if (cultivation?.status === 'Gestation' && cultivation?.planting_date) {
-            const plantDate = new Date(cultivation.planting_date);
-            const gestationPeriodDays = 3.5 * 365.25;
-            const firstHarvestDate = new Date(plantDate.getTime() + gestationPeriodDays * 24 * 60 * 60 * 1000);
-            const timeToHarvest = firstHarvestDate.getTime() - new Date().getTime();
-            daysToHarvest = Math.max(0, Math.ceil(timeToHarvest / (1000 * 60 * 60 * 24)));
-      }
-      
-      return { currentMarketValue, projectedMarketValue, yourStakeValue, yourProjectedValue, yourProfit, daysToHarvest, status: cultivation?.status || 'N/A' };
-  };
-
-  // --- Main Render ---
-  if (authLoading || isLoading) {
-     return (
-        <div className="min-h-screen flex items-center justify-center bg-gradient-subtle">
-          <Loader2 className="w-12 h-12 animate-spin text-primary" />
-        </div>
-     );
+  if (authLoading || loadingStats || !profile) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-subtle">
+        <Loader2 className="w-12 h-12 animate-spin text-primary" />
+      </div>
+    );
   }
+  
+  const investorName = profile.name?.split(" ")[0] || "Investor";
 
   return (
     <div className="min-h-screen bg-gradient-subtle pb-6">
-      <div className="container mx-auto p-4 sm:p-6 max-w-4xl">
-        <div className="space-y-6">
-          {/* Header */}
+      {/* --- Investor Stats Card (Green Banner) --- */}
+      <div className="bg-gradient-primary rounded-b-[24px] shadow-strong pt-6 pb-8 px-4 sm:px-6 relative z-10">
+        <div className="container mx-auto max-w-4xl text-primary-foreground space-y-4">
+          {/* Header Row with Logout */}
           <div className="flex items-center justify-between">
-             <div className="flex items-center gap-2 sm:gap-4">
-                 <Building className="w-8 h-8 text-primary" />
-                 <div>
-                     <h1 className="text-2xl sm:text-3xl font-bold">My Investments</h1>
-                     {/* Show investor name */}
-                     <p className="text-muted-foreground text-sm sm:text-base">Welcome, {profile?.name || 'Investor'}!</p>
-                 </div>
-             </div>
-             <div className="flex gap-2">
-                <Button variant="outline" onClick={() => navigate("/investor-marketplace")}>
-                    <Store className="w-4 h-4 mr-2" /> Browse Marketplace
-                </Button>
-                <Button variant="ghost" onClick={handleLogout}>Logout <LogOut className="w-4 h-4 ml-2"/></Button>
-             </div>
+             <div className="flex items-center gap-3">
+              <Avatar className="w-12 h-12 border-2 border-primary-foreground/50">
+                <AvatarFallback className="bg-white/20 text-xl">
+                  <User className="w-6 h-6" />
+                </AvatarFallback>
+              </Avatar>
+              <div>
+                <h1 className="text-xl font-bold leading-tight">Welcome, {investorName}!</h1>
+                <p className="text-lg font-semibold leading-tight -mt-0.5">Investor Dashboard</p>
+              </div>
+            </div>
+            <Button variant="ghost" size="icon" onClick={handleLogout} className="text-primary-foreground hover:bg-white/20 rounded-full">
+              <LogOut className="w-5 h-5" />
+            </Button>
           </div>
           
-          {/* Investment List */}
-          <div className="space-y-4">
-             {investments.length === 0 ? (
-                 <Card className="p-10 text-center text-muted-foreground rounded-xl"> 
-                    You have no active investments. Visit the marketplace to find farmers.
-                 </Card>
-             ) : (
-                investments.map((inv) => {
-                  if (!inv.farmers || !inv.investors) return null;
-                  
-                  const farmer = inv.farmers;
-                  const investor = inv.investors;
-                  const calcs = getCalculations(farmer, investor, inv.cultivation);
-                  
-                  return (
-                      <Card key={inv.link_id} className="p-4 sm:p-6 shadow-soft rounded-2xl border-l-4 border-success">
-                        <div className="space-y-4">
-                            {/* Farmer Info */}
-                            <div className="flex items-start justify-between">
-                                <div className="flex items-start gap-3 sm:gap-4">
-                                    <Avatar className="w-12 h-12 text-lg">
-                                        <AvatarFallback className="bg-gradient-primary text-primary-foreground">
-                                            {farmer.name?.charAt(0).toUpperCase() || <User />}
-                                        </AvatarFallback>
-                                    </Avatar>
-                                    <div>
-                                        <h3 className="font-bold text-base sm:text-lg">{farmer.name}</h3>
-                                        <div className="flex items-center gap-1.5 text-xs sm:text-sm text-muted-foreground mt-0.5">
-                                            <MapPin className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
-                                            <span>{farmer.district || "Unknown Location"}</span>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="text-success px-3 py-1 rounded-full text-xs sm:text-sm font-semibold flex items-center gap-1.5 bg-success/10 self-start">
-                                    <CheckCircle className="w-3 h-3" />
-                                    Approved
-                                </div>
-                            </div>
-
-                            {/* Investment Details */}
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 py-3 sm:py-4 border-t border-b text-center sm:text-left">
-                                <div>
-                                    <p className="text-xs sm:text-sm text-muted-foreground mb-1">Your Investment</p>
-                                    <p className="font-bold text-sm sm:text-lg text-accent">{formatCurrency(investor.amount)}</p>
-
-                                </div>
-                                <div>
-                                    <p className="text-xs sm:text-sm text-muted-foreground mb-1">Your Stake</p>
-                                    <p className="font-bold text-sm sm:text-lg text-primary">{investor.offer_percent.toFixed(2)}%</p>
-                                </div>
-                                <div>
-                                    <p className="text-xs sm:text-sm text-muted-foreground mb-1">Your Land Share</p>
-                                    <p className="font-bold text-sm sm:text-lg text-success">{(farmer.land_size * (investor.offer_percent / 100)).toFixed(2)} acres</p>
-                                </div>
-                                <div>
-                                    <p className="text-xs sm:text-sm text-muted-foreground mb-1">Farm Status</p>
-                                    <p className="font-bold text-sm sm:text-lg">{calcs.status}</p>
-                                </div>
-                            </div>
-                            
-                            {/* Financials Card */}
-                            <Card className="p-4 bg-muted/50 shadow-inner">
-                                <h4 className="font-semibold mb-3 text-center">Your Stake Financials</h4>
-                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
-                                    <div className="text-center sm:text-left">
-                                        <p className="text-xs text-muted-foreground">Current Value</p>
-                                        <p className="font-bold text-base text-primary">{formatCurrency(calcs.yourStakeValue)}</p>
-                                    </div>
-                                    <div className="text-center sm:text-left">
-                                        <p className="text-xs text-muted-foreground">Est. 5-Yr Value</p>
-                                        <p className="font-bold text-base text-success">{formatCurrency(calcs.yourProjectedValue)}</p>
-                                    </div>
-                                    <div className="text-center sm:text-left col-span-2 sm:col-span-1">
-                                        <p className="text-xs text-muted-foreground">Est. 5-Yr Profit</p>
-                                        <p className="font-bold text-base text-success">{formatCurrency(calcs.yourProfit)}</p>
-                                    </div>
-                                </div>
-                            </Card>
-
-                            {/* Harvest Countdown */}
-                            {calcs.daysToHarvest !== null && calcs.daysToHarvest > 0 && (
-                                <div className="flex items-center gap-3 p-3 bg-blue-50 border-blue-200 border rounded-lg">
-                                    <Clock className="w-5 h-5 text-blue-600" />
-                                    <div>
-                                        <p className="font-semibold text-blue-800">~{calcs.daysToHarvest} days remaining</p>
-                                        <p className="text-xs text-blue-700">until this farm's first harvest</p>
-                                    </div>
-                                </div>
-                            )}
-
-                        </div>
-                      </Card>
-                  );
-                })
-            )}
+          {/* Stats Grid */}
+          <div className="pt-4 grid grid-cols-2 gap-3 sm:gap-4">
+              <Card className="bg-white/10 p-3 sm:p-4 rounded-lg">
+                <div className="flex items-center gap-1.5 mb-1"><DollarSign className="w-4 h-4 opacity-80" /><p className="text-xs opacity-80 font-medium">Total Invested</p></div>
+                <p className="text-lg sm:text-2xl font-bold leading-tight">{formatCurrency(stats.totalInvested)}</p>
+              </Card>
+              <Card className="bg-white/10 p-3 sm:p-4 rounded-lg">
+                <div className="flex items-center gap-1.5 mb-1"><BarChart className="w-4 h-4 opacity-80" /><p className="text-xs opacity-80 font-medium">Total Stake Acquired</p></div>
+                <p className="text-lg sm:text-2xl font-bold leading-tight">{stats.totalStake.toFixed(2)}%</p>
+              </Card>
+              <Card className="bg-white/10 p-3 sm:p-4 rounded-lg">
+                <div className="flex items-center gap-1.5 mb-1"><DollarSign className="w-4 h-4 opacity-80" /><p className="text-xs opacity-80 font-medium">Projected 5-Yr Return</p></div>
+                {/* --- THIS IS THE FIX --- */}
+                <p className="text-lg sm:text-2xl font-bold leading-tight"> 
+                  {formatCurrency(stats.projectedReturn)}
+                </p>
+                {/* --- END OF FIX --- */}
+              </Card>
+              <Card className="bg-white/10 p-3 sm:p-4 rounded-lg">
+                <div className="flex items-center gap-1.5 mb-1"><Sprout className="w-4 h-4 opacity-80" /><p className="text-xs opacity-80 font-medium">Farms Linked</p></div>
+                <p className="text-lg sm:text-2xl font-bold leading-tight">{stats.farmsLinked}</p>
+              </Card>
           </div>
         </div>
+      </div>
+
+      {/* --- Main Content Area --- */}
+      <div className="container mx-auto max-w-4xl mt-6 px-4 sm:px-0">
+         
+         {/* --- Marketplace Button --- */}
+         <Card 
+            className="p-4 sm:p-6 shadow-medium bg-card mb-6 flex flex-col sm:flex-row items-center justify-between gap-3 rounded-2xl cursor-pointer hover:shadow-lg transition-shadow"
+            onClick={() => navigate("/investor-marketplace")}
+         >
+             <div className="flex items-center gap-3">
+                 <Search className="w-6 h-6 text-primary" />
+                 <div>
+                     <h2 className="text-base font-semibold">Browse Farmer Marketplace</h2>
+                     <p className="text-sm text-muted-foreground">Find new deforestation-free farms to invest in.</p>
+                 </div>
+             </div>
+             <Button>Find Farms</Button>
+         </Card>
+         
+         {/* --- Approved Investments Section --- */}
+         <div className="space-y-4">
+            <h2 className="text-xl font-bold text-foreground">Your Approved Investments</h2>
+            {linkedFarms.length === 0 ? (
+                <Card className="p-6 text-center text-muted-foreground rounded-xl">
+                   You have no approved investments yet.
+                </Card>
+            ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {linkedFarms.map((farm) => (
+                    <Card 
+                      key={farm.farmer_id} 
+                      className="p-4 space-y-3 shadow-soft rounded-xl cursor-pointer hover:shadow-medium transition-shadow"
+                      onClick={() => navigate(`/farmer/${farm.farmer_id}`)}
+                    >
+                      <div className="flex items-center gap-3">
+                         <Avatar className="w-10 h-10">
+                            <AvatarFallback className="bg-primary/20 text-primary font-semibold">
+                              {farm.name?.charAt(0) || 'F'}
+                            </AvatarFallback>
+                         </Avatar>
+                         <div>
+                           <h3 className="font-bold">{farm.name}</h3>
+                           <p className="text-xs text-muted-foreground flex items-center gap-1">
+                             <MapPin className="w-3 h-3" /> {farm.district}
+                           </p>
+                         </div>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-2 text-sm pt-2 border-t">
+                          <div>
+                            <p className="text-xs text-muted-foreground">You Invested</p>
+                            <p className="font-semibold">{formatCurrency(farm.amount)}</p>
+                          </div>
+                           <div>
+                            <p className="text-xs text-muted-foreground">Your Stake</p>
+                            <p className="font-semibold">{farm.offer_percent.toFixed(2)}%</p>
+                          </div>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+            )}
+         </div>
+
       </div>
     </div>
   );

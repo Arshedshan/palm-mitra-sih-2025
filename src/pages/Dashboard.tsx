@@ -10,7 +10,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
   Users, BookOpen, DollarSign, MessageCircle, TrendingUp, Award,
   MapPin, Sprout, CheckCircle2, User, Loader2, LogOut, CalendarDays, Eye, BarChart,
-  Shield, Banknote 
+  Shield, Banknote, PlayCircle, StopCircle // <-- ADDED ICONS
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabaseClient';
@@ -18,8 +18,19 @@ import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { Switch } from "@/components/ui/switch"; 
 import { Label } from "@/components/ui/label"; 
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogClose,
+} from "@/components/ui/dialog"; // <-- IMPORT DIALOG
+import { Input } from "@/components/ui/input"; // <-- IMPORT INPUT
+import { Checkbox } from "@/components/ui/checkbox"; // <-- IMPORT CHECKBOX
 
-// --- MODULES ARRAY ---
+// --- MODULES ARRAY (no change from last time) ---
 const modules = [
   {
     id: "community", icon: Users, label: "Community", description: "Feed & Progress", 
@@ -56,6 +67,14 @@ const modules = [
 ];
 // ---------------------------------
 
+// --- NEW CULTIVATION TYPE ---
+interface CultivationRecord {
+  id: string; // The row ID
+  planting_date: string | null;
+  status: string | null;
+  harvest_date: string | null;
+}
+
 interface LinkedInvestor {
   investors: {
     offer_percent: number;
@@ -76,14 +95,27 @@ const Dashboard = () => {
       availableStake: 0,
       currentMarketValue: 0,
       predictedMarketValue: 0,
-      experienceYears: null as number | null, 
-      cultivationStatus: null as string | null,
-      daysToHarvest: null as number | null, 
   });
+  // --- NEW STATE ---
+  const [activeCultivation, setActiveCultivation] = useState<CultivationRecord | null>(null);
+  const [hasEverPlanted, setHasEverPlanted] = useState(false);
+  const [daysToHarvest, setDaysToHarvest] = useState<number | null>(null);
+  const [cultivationStatus, setCultivationStatus] = useState<string | null>(null);
+
   const [loadingStats, setLoadingStats] = useState(true);
-  
   const [isSeeking, setIsSeeking] = useState(false);
   const [isToggleLoading, setIsToggleLoading] = useState(false);
+
+  // --- NEW STATE FOR DIALOGS ---
+  const [isStartDialogOpen, setIsStartDialogOpen] = useState(false);
+  const [isEndDialogOpen, setIsEndDialogOpen] = useState(false);
+  const [isSubmittingPlant, setIsSubmittingPlant] = useState(false);
+  
+  // --- NEW STATE FOR FORMS ---
+  const [plantingDate, setPlantingDate] = useState("");
+  const [isFirstPlantation, setIsFirstPlantation] = useState(false);
+  const [harvestDate, setHarvestDate] = useState("");
+
 
   useEffect(() => {
     if (profile) {
@@ -96,13 +128,21 @@ const Dashboard = () => {
         .eq('farmer_id', profile.id)
         .eq('status', 'approved'); 
 
-      const getCultivationData = supabase
+      // --- UPDATED: Fetch active cultivation ---
+      const getActiveCultivation = supabase
         .from('cultivation')
-        .select('planting_date, status')
+        .select('*')
         .eq('farmer_id', profile.id)
-        .order('planting_date', { ascending: true }) 
+        .eq('status', 'Gestation') // Only get active ones
+        .order('planting_date', { ascending: false }) 
         .limit(1)
         .single();
+      
+      // --- NEW: Check if farmer has *ever* planted ---
+      const getHasEverPlanted = supabase
+        .from('cultivation')
+        .select('id', { count: 'exact', head: true })
+        .eq('farmer_id', profile.id);
         
       const getSeekingStatus = supabase
         .from('farmers')
@@ -113,8 +153,13 @@ const Dashboard = () => {
       const getCurrentValue = () => totalLand * 150000;
       const getFutureValue = () => totalLand * 400000;
       
-      Promise.all([getInvestorStats, getCultivationData, getSeekingStatus])
-        .then(([investorResult, cultivationResult, seekingResult]) => {
+      Promise.all([
+        getInvestorStats, 
+        getActiveCultivation, 
+        getSeekingStatus, 
+        getHasEverPlanted
+      ])
+        .then(([investorResult, activeCultivationResult, seekingResult, hasPlantedResult]) => {
           
           let investorStats = { 
               totalStakeAllocated: 0,
@@ -136,43 +181,38 @@ const Dashboard = () => {
                   availableStake: Math.max(0, 100 - totalStake),
               };
           } else if (investorResult.error) {
-              toast.error("Could not load investor stats.");
               console.error("Error fetching links:", investorResult.error);
           }
 
-          let cultivationStats = {
-              experienceYears: null as number | null,
-              cultivationStatus: null as string | null,
-              daysToHarvest: null as number | null, 
-          };
-          if (!cultivationResult.error && cultivationResult.data) {
-              const plantDate = new Date(cultivationResult.data.planting_date);
-              const today = new Date();
-              const diffTime = today.getTime() - plantDate.getTime();
-              const diffYears = parseFloat((diffTime / (1000 * 60 * 60 * 24 * 365.25)).toFixed(1));
+          // --- Process Cultivation Data ---
+          if (!activeCultivationResult.error && activeCultivationResult.data) {
+              const cultData = activeCultivationResult.data as CultivationRecord;
+              setActiveCultivation(cultData); // Set the active record
               
-              const status = cultivationResult.data.status || "Gestation";
-              let daysToHarvest: number | null = null;
+              const status = cultData.status || "Gestation";
+              setCultivationStatus(status);
 
-              if (status === 'Gestation' && cultivationResult.data.planting_date) {
-                  const gestationPeriodDays = 3.5 * 365.25; // ~1278 days
+              if (status === 'Gestation' && cultData.planting_date) {
+                  const plantDate = new Date(cultData.planting_date);
+                  const today = new Date();
+                  const gestationPeriodDays = 3.5 * 365.25; 
                   const firstHarvestDate = new Date(plantDate.getTime() + gestationPeriodDays * 24 * 60 * 60 * 1000);
                   const timeToHarvest = firstHarvestDate.getTime() - today.getTime();
-                  daysToHarvest = Math.max(0, Math.ceil(timeToHarvest / (1000 * 60 * 60 * 24)));
+                  setDaysToHarvest(Math.max(0, Math.ceil(timeToHarvest / (1000 * 60 * 60 * 24))));
               }
-
-              cultivationStats = {
-                  experienceYears: diffYears > 0 ? diffYears : 0,
-                  cultivationStatus: status,
-                  daysToHarvest: daysToHarvest, 
-              };
-          } else if (cultivationResult.error && cultivationResult.error.code !== 'PGRST116') {
-              toast.error("Could not load cultivation data.");
-              console.error("Error fetching cultivation:", cultivationResult.error);
+          } else {
+              // No active cultivation
+              setActiveCultivation(null);
+              setCultivationStatus(null);
+              setDaysToHarvest(null);
           }
           
           if (!seekingResult.error && seekingResult.data) {
               setIsSeeking(seekingResult.data.is_seeking_investment);
+          }
+
+          if (!hasPlantedResult.error && hasPlantedResult.count !== null) {
+              setHasEverPlanted(hasPlantedResult.count > 0);
           }
 
           const marketStats = {
@@ -183,7 +223,6 @@ const Dashboard = () => {
           setStats({
               totalLand: totalLand,
               ...investorStats,
-              ...cultivationStats, 
               ...marketStats,
           });
           
@@ -217,6 +256,84 @@ const Dashboard = () => {
       setIsToggleLoading(false);
   };
 
+  // --- NEW: Handle Start Plantation ---
+  const handleStartPlantation = async () => {
+    if (!profile) return;
+    if (!plantingDate) {
+      toast.error("Please select a planting date.");
+      return;
+    }
+    
+    setIsSubmittingPlant(true);
+    const { data, error } = await supabase
+      .from("cultivation")
+      .insert({
+        farmer_id: profile.id,
+        planting_date: plantingDate,
+        status: "Gestation",
+        // 'is_first' isn't in your DB schema, but this is how you'd pass it
+      })
+      .select()
+      .single();
+      
+    if (error) {
+      toast.error("Failed to start plantation. Please try again.");
+      console.error(error);
+    } else {
+      toast.success("Plantation started successfully!");
+      setActiveCultivation(data as CultivationRecord); // Set new active record
+      setHasEverPlanted(true); // Now they have planted
+      setCultivationStatus("Gestation"); // Manually update status for UI
+      
+      // Manually calculate days to harvest for UI
+      const plantDate = new Date(plantingDate);
+      const today = new Date();
+      const gestationPeriodDays = 3.5 * 365.25; 
+      const firstHarvestDate = new Date(plantDate.getTime() + gestationPeriodDays * 24 * 60 * 60 * 1000);
+      const timeToHarvest = firstHarvestDate.getTime() - today.getTime();
+      setDaysToHarvest(Math.max(0, Math.ceil(timeToHarvest / (1000 * 60 * 60 * 24))));
+
+      setIsStartDialogOpen(false); // Close modal
+      setPlantingDate(""); // Reset form
+      setIsFirstPlantation(false);
+    }
+    setIsSubmittingPlant(false);
+  };
+
+  // --- NEW: Handle End Plantation ---
+  const handleEndPlantation = async () => {
+    if (!profile || !activeCultivation) return;
+    if (!harvestDate) {
+      toast.error("Please select a harvest date.");
+      return;
+    }
+    
+    setIsSubmittingPlant(true);
+    const { data, error } = await supabase
+      .from("cultivation")
+      .update({
+        harvest_date: harvestDate,
+        status: "Mature" // or "Harvested"
+      })
+      .eq('id', activeCultivation.id) // Update the specific active record
+      .select()
+      .single();
+      
+    if (error) {
+      toast.error("Failed to end plantation. Please try again.");
+      console.error(error);
+    } else {
+      toast.success("Plantation cycle marked as complete!");
+      setActiveCultivation(null); // No longer an active "Gestation" record
+      setCultivationStatus("Mature"); // Set status for UI
+      setDaysToHarvest(null); // Clear days to harvest
+      setIsEndDialogOpen(false); // Close modal
+      setHarvestDate(""); // Reset form
+    }
+    setIsSubmittingPlant(false);
+  };
+
+
   if (authLoading || !profile) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-subtle">
@@ -238,7 +355,6 @@ const Dashboard = () => {
         <div className="container mx-auto max-w-4xl text-primary-foreground space-y-4">
           {/* Header Row with Logout */}
           <div className="flex items-center justify-between">
-             {/* --- AVATAR AND NAME ARE NOW CLICKABLE --- */}
              <button 
               className="flex items-center gap-3 cursor-pointer hover:opacity-90 transition-opacity rounded-md p-1 -ml-1"
               onClick={() => navigate('/profile')}
@@ -253,16 +369,48 @@ const Dashboard = () => {
                 <p className="text-lg font-semibold leading-tight -mt-0.5">{profile.district}</p>
               </div>
             </button>
-            {/* ------------------------------------------- */}
-            <Button variant="ghost" size="icon" onClick={handleLogout} className="text-primary-foreground hover:bg-white/20 rounded-full">
-              <LogOut className="w-5 h-5" />
-            </Button>
+            
+            {/* --- NEW BUTTONS --- */}
+            <div className="flex items-center gap-2">
+              <Button 
+                variant={activeCultivation ? "destructive" : "success"} 
+                className="hidden sm:flex"
+                onClick={() => activeCultivation ? setIsEndDialogOpen(true) : setIsStartDialogOpen(true)}
+              >
+                {activeCultivation ? (
+                  <StopCircle className="w-5 h-5 mr-2" />
+                ) : (
+                  <PlayCircle className="w-5 h-5 mr-2" />
+                )}
+                {activeCultivation ? "End Plantation" : "Start Plantation"}
+              </Button>
+              <Button variant="ghost" size="icon" onClick={handleLogout} className="text-primary-foreground hover:bg-white/20 rounded-full">
+                <LogOut className="w-5 h-5" />
+              </Button>
+            </div>
+            {/* -------------------- */}
           </div>
           {/* Verified Badge */}
           <div className="bg-white/20 backdrop-blur-sm px-4 py-2 rounded-xl inline-flex items-center gap-2 text-sm font-medium">
             <CheckCircle2 className="w-4 h-4 text-primary-foreground flex-shrink-0" />
             <span>Verified Deforestation-Free Farm</span>
           </div>
+
+          {/* --- NEW: Mobile Start/End Plantation Button --- */}
+          <Button 
+            variant={activeCultivation ? "destructive" : "success"} 
+            className="flex sm:hidden w-full"
+            onClick={() => activeCultivation ? setIsEndDialogOpen(true) : setIsStartDialogOpen(true)}
+          >
+            {activeCultivation ? (
+              <StopCircle className="w-5 h-5 mr-2" />
+            ) : (
+              <PlayCircle className="w-5 h-5 mr-2" />
+            )}
+            {activeCultivation ? "End Plantation" : "Start Plantation"}
+          </Button>
+          {/* ------------------------------------------- */}
+
 
           {/* Stats Grid */}
           <div className="pt-4">
@@ -302,10 +450,10 @@ const Dashboard = () => {
                   <Card className="bg-white/10 p-3 sm:p-4 rounded-lg">
                     <div className="flex items-center gap-1.5 mb-1"><CalendarDays className="w-4 h-4 opacity-80" /><p className="text-xs opacity-80 font-medium">Harvest Status</p></div>
                     
-                    {stats.cultivationStatus === 'Gestation' && stats.daysToHarvest !== null && stats.daysToHarvest > 0 ? (
+                    {cultivationStatus === 'Gestation' && daysToHarvest !== null && daysToHarvest > 0 ? (
                         <>
                             <p className="text-xl sm:text-2xl font-bold leading-tight">
-                                ~{stats.daysToHarvest} days
+                                ~{daysToHarvest} days
                             </p>
                             <p className="text-xs opacity-80 leading-tight">
                                 until first harvest
@@ -314,10 +462,10 @@ const Dashboard = () => {
                     ) : (
                         <>
                             <p className="text-xl sm:text-2xl font-bold leading-tight">
-                                {stats.cultivationStatus || 'N/A'}
+                                {cultivationStatus || 'Not Started'}
                             </p>
                             <p className="text-xs opacity-80 leading-tight">
-                                {stats.cultivationStatus === 'Mature' ? 'Ready for harvest' : (stats.cultivationStatus ? 'Status' : 'No planting date')}
+                                {cultivationStatus === 'Mature' ? 'Ready for harvest' : 'No active plantation'}
                             </p>
                         </>
                     )}
@@ -338,20 +486,25 @@ const Dashboard = () => {
 
       {/* --- Module Grid & Toggle --- */}
       <div className="container mx-auto max-w-4xl mt-6 px-4 sm:px-0">
-         {/* --- Toggle Switch --- */}
+         {/* --- Toggle Switch (NOW DISABLED BASED ON STATE) --- */}
          <Card className="p-4 sm:p-6 shadow-medium bg-card mb-4 flex flex-col sm:flex-row items-center justify-between gap-3 rounded-2xl">
              <div className="flex items-center gap-3">
-                 <Eye className="w-6 h-6 text-primary" />
+                 <Eye className={`w-6 h-6 ${hasEverPlanted ? 'text-primary' : 'text-muted-foreground'}`} />
                  <div>
-                     <Label htmlFor="seeking-toggle" className="text-base font-semibold">Seek Investment</Label>
-                     <p className="text-sm text-muted-foreground">Make your profile visible to investors in the Farmer Marketplace.</p>
+                     <Label htmlFor="seeking-toggle" className={`text-base font-semibold ${!hasEverPlanted ? 'text-muted-foreground' : ''}`}>Seek Investment</Label>
+                     <p className="text-sm text-muted-foreground">
+                       {hasEverPlanted 
+                         ? "Make your profile visible to investors in the Farmer Marketplace."
+                         : "You must start your first plantation before you can seek investment."
+                       }
+                     </p>
                  </div>
              </div>
              <Switch
                 id="seeking-toggle"
-                checked={isSeeking}
+                checked={isSeeking && hasEverPlanted}
                 onCheckedChange={handleSeekingToggle}
-                disabled={isToggleLoading}
+                disabled={isToggleLoading || !hasEverPlanted}
              />
          </Card>
          
@@ -380,6 +533,89 @@ const Dashboard = () => {
           ))}
         </div>
       </div>
+
+      {/* --- NEW: Start Plantation Dialog --- */}
+      <Dialog open={isStartDialogOpen} onOpenChange={setIsStartDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-2xl">Start a New Plantation</DialogTitle>
+            <DialogDescription>
+              Log the start of a new cultivation cycle. This will be visible to investors.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="planting-date">Planting Date</Label>
+              <Input
+                id="planting-date"
+                type="date"
+                value={plantingDate}
+                onChange={(e) => setPlantingDate(e.target.value)}
+                className="h-12"
+              />
+            </div>
+            <div className="flex items-center space-x-2">
+              <Checkbox 
+                id="is-first" 
+                checked={isFirstPlantation}
+                onCheckedChange={(checked) => setIsFirstPlantation(checked === true)}
+              />
+              <label
+                htmlFor="is-first"
+                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+              >
+                Is this your first oil palm plantation?
+              </label>
+            </div>
+          </div>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button type="button" variant="outline" disabled={isSubmittingPlant}>Cancel</Button>
+            </DialogClose>
+            <Button type="submit" onClick={handleStartPlantation} disabled={isSubmittingPlant}>
+              {isSubmittingPlant && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              {isSubmittingPlant ? "Saving..." : "Start Plantation"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* --- NEW: End Plantation Dialog --- */}
+      <Dialog open={isEndDialogOpen} onOpenChange={setIsEndDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-2xl">End Plantation Cycle</DialogTitle>
+            <DialogDescription>
+              Mark this cultivation cycle as complete and log the harvest date.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="harvest-date">Harvest Date</Label>
+              <Input
+                id="harvest-date"
+                type="date"
+                value={harvestDate}
+                onChange={(e) => setHarvestDate(e.target.value)}
+                className="h-12"
+              />
+            </div>
+            <Card className="p-3 bg-muted/50 text-sm text-muted-foreground">
+              This will mark your 'Gestation' period as 'Mature' and allow you to start a new plantation log.
+            </Card>
+          </div>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button type="button" variant="outline" disabled={isSubmittingPlant}>Cancel</Button>
+            </DialogClose>
+            <Button type="submit" variant="destructive" onClick={handleEndPlantation} disabled={isSubmittingPlant}>
+              {isSubmittingPlant && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              {isSubmittingPlant ? "Saving..." : "End Plantation"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
     </div>
   );
 };

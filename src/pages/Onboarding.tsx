@@ -24,14 +24,14 @@ const stateDistrictMap: Record<string, string[]> = {
 const states = Object.keys(stateDistrictMap).sort();
 
 
-// Questions array
+// --- UPDATED: Questions array (plantingDate removed) ---
 const questions = [
   { id: "name", label: "What is your name?", type: "text", placeholder: "Enter your name" },
   { id: "phone", label: "What is your phone number?", type: "tel", placeholder: "e.g., 9876543210" }, 
   { id: "state", label: "What is your state?", type: "select", placeholder: "Select your state" },
   { id: "district", label: "What is your district?", type: "select", placeholder: "Select your district" },
   { id: "landSize", label: "How much land do you have? (in acres)", type: "text", placeholder: "e.g., 2.5 or 5" },
-  { id: "plantingDate", label: "When did you plant your oil palm? (Approx.)", type: "date" },
+  // { id: "plantingDate", label: "When did you plant your oil palm? (Approx.)", type: "date" }, // <-- REMOVED
 ];
 
 
@@ -46,7 +46,7 @@ const Onboarding = () => {
     state: "",
     district: "",
     landSize: "",
-    plantingDate: ""
+    // plantingDate: "" // <-- REMOVED
   });
   const [isLocating, setIsLocating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -115,11 +115,8 @@ const Onboarding = () => {
       const profileData = { ...formData }; 
       const landSizeNum = parseFloat(profileData.landSize.replace(',', '.')) || 0;
 
-      // --- NEW: Generate and store mock address ---
       const mockAddress = `123, Palm Tree Lane, ${profileData.district}, ${profileData.state}`;
-      // Save to local storage for Verification.tsx to read
       localStorage.setItem("mockAddress", mockAddress); 
-      // ------------------------------------------
 
       try {
         // 1. Insert into 'farmers' table
@@ -131,7 +128,7 @@ const Onboarding = () => {
             phone: profileData.phone, 
             state: profileData.state, 
             district: profileData.district,
-            address: mockAddress, // <-- SAVE ADDRESS TO DB
+            address: mockAddress, 
             land_size: landSizeNum,
             language: langCode,
             gps_coords: location
@@ -141,14 +138,7 @@ const Onboarding = () => {
 
         if (farmerError) throw farmerError;
 
-        // 2. Insert into 'cultivation' table
-        if (farmer && profileData.plantingDate) {
-           await supabase.from('cultivation').insert({
-              farmer_id: farmer.id, 
-              planting_date: profileData.plantingDate,
-              status: 'Gestation' 
-           });
-        }
+        // --- REMOVED: No longer creating cultivation record here ---
         
         // 3. (SIMULATION) Insert into 'Green_Ledger'
         if (farmer && location) {

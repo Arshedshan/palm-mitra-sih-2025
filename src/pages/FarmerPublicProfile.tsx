@@ -9,7 +9,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   ArrowLeft, Loader2, MapPin, Sprout, ShieldCheck, User, BarChart, DollarSign,
   Info, Send, Handshake, XCircle,
-  Phone, Home // <-- ADDED ICONS
+  Phone, Home, Calendar // <-- ADDED Calendar
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabaseClient";
@@ -27,7 +27,19 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useInvestorAuth } from "@/context/InvestorAuthContext"; // <-- IMPORT NEW AUTH
+import { useInvestorAuth } from "@/context/InvestorAuthContext"; 
+
+// --- NEW: Define Post interface ---
+interface Post {
+    id: number;
+    author_name: string;
+    location: string | null;
+    avatar: string | null;
+    content: string;
+    created_at: string;
+    // Add time for the formatted string
+    time?: string; 
+}
 
 // Define type for Cultivation data
 interface CultivationRecord {
@@ -37,6 +49,22 @@ interface CultivationRecord {
   harvest_date: string | null;
   yield_amount_tonnes: number | null;
 }
+
+// --- NEW: Helper function for relative time ---
+const formatRelativeTime = (timestamp: string): string => {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diffSeconds = Math.round((now.getTime() - date.getTime()) / 1000);
+    const diffMinutes = Math.round(diffSeconds / 60);
+    const diffHours = Math.round(diffMinutes / 60);
+    const diffDays = Math.round(diffHours / 24);
+
+    if (diffSeconds < 60) return `${diffSeconds}s ago`;
+    if (diffMinutes < 60) return `${diffMinutes}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return date.toLocaleDateString('en-IN');
+};
 
 const formatCurrency = (amount: number | null) => {
     if (amount === null || amount === undefined) return "N/A";
@@ -49,6 +77,7 @@ const FarmerPublicProfile = () => {
   
   const [farmer, setFarmer] = useState<FarmerProfile | null>(null);
   const [cultivation, setCultivation] = useState<CultivationRecord[]>([]);
+  const [posts, setPosts] = useState<Post[]>([]); // <-- NEW: State for posts
   const [isVerified, setIsVerified] = useState(false);
   const [isLoading, setIsLoading] = useState(true); 
   const [experience, setExperience] = useState<number>(0);
@@ -65,17 +94,13 @@ const FarmerPublicProfile = () => {
   } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false); 
   
-  // --- USE NEW AUTH ---
   const { profile: investorProfile, loading: investorAuthLoading } = useInvestorAuth();
 
   useEffect(() => {
-    // Wait for auth to finish before checking for farmerId
     if (investorAuthLoading) {
         setIsLoading(true);
         return;
     }
-    
-    // We are now protected by the InvestorProtectedRoute, so no need for localStorage check
     
     if (!farmerId) {
       toast.error("No farmer specified.");
@@ -86,37 +111,60 @@ const FarmerPublicProfile = () => {
     const fetchFarmerDetails = async () => {
       setIsLoading(true);
       try {
-        // --- Fetch includes new fields: phone, address, state ---
-        const { data: farmerData, error: farmerError } = await supabase
-          .from('farmers')
-          .select('*') // <-- This already selects all columns
-          .eq('id', farmerId)
-          .eq('is_seeking_investment', true)
-          .single();
+        // --- UPDATED: Add posts fetch ---
+        const [farmerResult, cultivationResult, verificationResult, postsResult] = 
+          await Promise.all([
+            // 1. Fetch Farmer
+            supabase
+              .from('farmers')
+              .select('*') 
+              .eq('id', farmerId)
+              .single(), // Note: removed 'is_seeking_investment' check to allow approved investors to view
+            
+            // 2. Fetch Cultivation
+            supabase
+              .from('cultivation')
+              .select('*')
+              .eq('farmer_id', farmerId)
+              .order('planting_date', { ascending: true }),
+              
+            // 3. Fetch Verification
+            supabase
+              .from('Green_Ledger')
+              .select('status')
+              .eq('farm_id', farmerId)
+              .eq('status', 'Verified: Deforestation-Free')
+              .limit(1)
+              .single(),
+              
+            // 4. Fetch Posts
+            supabase
+              .from('posts')
+              .select('*')
+              .eq('farmer_id', farmerId)
+              .order('created_at', { ascending: false })
+          ]);
           
-        if (farmerError || !farmerData) {
-          toast.error("Could not fetch farmer details or they are no longer seeking investment.");
-          console.error(farmerError);
+        // Process Farmer
+        if (farmerResult.error || !farmerResult.data) {
+          toast.error("Could not fetch farmer details.");
+          console.error(farmerResult.error);
           navigate("/investor-marketplace");
           return;
         }
         
-        setFarmer(farmerData as FarmerProfile);
+        const farmerData = farmerResult.data as FarmerProfile;
+        setFarmer(farmerData);
         const landSize = farmerData.land_size || 0;
         const currentMarketValue = landSize * 150000; 
         const futureMarketValue = landSize * 400000;  
         setFarmMarketValue(currentMarketValue);
         setProjectedFarmValue(futureMarketValue);
 
-        const { data: cultivationData, error: cultivationError } = await supabase
-          .from('cultivation')
-          .select('*')
-          .eq('farmer_id', farmerId)
-          .order('planting_date', { ascending: true });
-          
-        if (!cultivationError && cultivationData) {
-          setCultivation(cultivationData || []);
-          const earliestPlantDate = cultivationData[0]?.planting_date;
+        // Process Cultivation
+        if (!cultivationResult.error && cultivationResult.data) {
+          setCultivation(cultivationResult.data || []);
+          const earliestPlantDate = cultivationResult.data[0]?.planting_date;
           if (earliestPlantDate) {
               const plantDate = new Date(earliestPlantDate);
               const today = new Date();
@@ -124,22 +172,24 @@ const FarmerPublicProfile = () => {
               const diffYears = parseFloat((diffTime / (1000 * 60 * 60 * 24 * 365.25)).toFixed(1));
               setExperience(diffYears > 0 ? diffYears : 0);
           }
-        } else if (cultivationError) {
-            console.warn("Could not fetch cultivation data:", cultivationError.message);
+        } else if (cultivationResult.error) {
+            console.warn("Could not fetch cultivation data:", cultivationResult.error.message);
         }
 
-        const { data: verificationData, error: verificationError } = await supabase
-          .from('Green_Ledger')
-          .select('status')
-          .eq('farm_id', farmerId)
-          .eq('status', 'Verified: Deforestation-Free')
-          .limit(1)
-          .single();
-          
-        if (!verificationError && verificationData) {
+        // Process Verification
+        if (!verificationResult.error && verificationResult.data) {
             setIsVerified(true);
-        } else if (verificationError && verificationError.code !== 'PGRST116') {
-             console.warn("Could not fetch verification data:", verificationError.message);
+        }
+        
+        // Process Posts
+        if (!postsResult.error && postsResult.data) {
+           const formattedPosts = postsResult.data.map(post => ({
+               ...post,
+               time: formatRelativeTime(post.created_at)
+           }));
+           setPosts(formattedPosts as Post[]);
+        } else if (postsResult.error) {
+            console.warn("Could not fetch farmer posts:", postsResult.error.message);
         }
         
       } catch (err: any) {
@@ -153,7 +203,7 @@ const FarmerPublicProfile = () => {
 
     fetchFarmerDetails();
     
-  }, [farmerId, navigate, investorAuthLoading]); // <-- Add auth loading dependency
+  }, [farmerId, navigate, investorAuthLoading]); 
   
   
   const handleAmountChange = (value: string) => {
@@ -179,7 +229,6 @@ const FarmerPublicProfile = () => {
   };
 
   const handleSubmitOffer = async () => {
-    // --- USE REAL INVESTOR DATA ---
     if (!calculatedOffer || !farmer || !investorProfile) {
         toast.error("Investor profile not found. Please log in again.");
         return;
@@ -193,9 +242,9 @@ const FarmerPublicProfile = () => {
         const { data: newInvestor, error: investorError } = await supabase
             .from('investors')
             .insert({
-                user_id: investorProfile.user_id, // <-- Use real investor user ID
-                investor_name: investorProfile.name, // <-- Use real investor name
-                location: "Investor Location", // TODO: Add location to investor_profiles
+                user_id: investorProfile.user_id, 
+                investor_name: investorProfile.name, 
+                location: "Investor Location", 
                 amount: amountNum,
                 offer_percent: calculatedOffer.stake,
                 is_available: false, 
@@ -234,7 +283,7 @@ const FarmerPublicProfile = () => {
   };
 
 
-  if (isLoading || investorAuthLoading) { // <-- Check both loaders
+  if (isLoading || investorAuthLoading) { 
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-subtle">
         <Loader2 className="w-12 h-12 animate-spin text-primary" />
@@ -252,7 +301,7 @@ const FarmerPublicProfile = () => {
         <div className="space-y-6">
           {/* Header */}
           <div className="flex items-center gap-2 sm:gap-4">
-             <Button variant="ghost" size="icon" onClick={() => navigate("/investor-marketplace")}>
+             <Button variant="ghost" size="icon" onClick={() => navigate(-1)}> {/* Changed to navigate(-1) to go back */}
                <ArrowLeft className="w-5 h-5" />
              </Button>
              <div>
@@ -289,79 +338,81 @@ const FarmerPublicProfile = () => {
                     )}
                  </div>
                  
-                 <Dialog open={isOfferDialogOpen} onOpenChange={setIsOfferDialogOpen}>
-                    <DialogTrigger asChild>
-                         <Button size="lg" className="w-full sm:w-auto">
-                            <DollarSign className="w-5 h-5 mr-2"/>
-                            Make Investment Offer
-                         </Button>
-                    </DialogTrigger>
-                    <DialogContent className="sm:max-w-md">
-                        <DialogHeader>
-                          <DialogTitle className="text-2xl">Make an Investment Offer</DialogTitle>
-                          <DialogDescription>
-                            Farm's current value is approx. {formatCurrency(farmMarketValue)}. 
-                            Projected 5-yr value is {formatCurrency(projectedFarmValue)}.
-                          </DialogDescription>
-                        </DialogHeader>
-                        
-                        <div className="space-y-4 py-4">
-                            <div className="space-y-2">
-                                <Label htmlFor="amount" className="text-base">Investment Amount (₹)</Label>
-                                <Input
-                                  id="amount"
-                                  type="number"
-                                  placeholder="e.g., 50000"
-                                  className="text-lg h-12"
-                                  value={investmentAmount}
-                                  onChange={(e) => handleAmountChange(e.target.value)}
-                                />
-                            </div>
-
-                            {calculatedOffer && (
-                               <Card className="p-4 bg-muted/50 shadow-inner animate-in fade-in duration-300">
-                                   <h4 className="font-semibold mb-3 text-center">Your Offer Details</h4>
-                                   <div className="grid grid-cols-2 gap-3 text-sm">
-                                      <div className="font-medium">Stake Percentage:</div>
-                                      <div className="text-right font-bold text-primary">{calculatedOffer.stake.toFixed(2)}%</div>
-                                      
-                                      <div className="font-medium">Equivalent Land:</div>
-                                      <div className="text-right font-bold">{calculatedOffer.land.toFixed(2)} acres</div>
-                                      
-                                      <div className="font-medium">Est. 5-Yr Return:</div>
-                                      <div className="text-right font-bold text-success">{formatCurrency(calculatedOffer.projectedReturn)}</div>
-                                      
-                                      <div className="font-medium">Est. 5-Yr Profit:</div>
-                                      <div className="text-right font-bold text-success">{formatCurrency(calculatedOffer.projectedProfit)}</div>
-                                   </div>
-                               </Card>
-                            )}
-                        </div>
-
-                        <DialogFooter className="sm:justify-between gap-2">
-                           <DialogClose asChild>
-                             <Button type="button" variant="outline" disabled={isSubmitting}>Cancel</Button>
-                           </DialogClose>
-                           <Button 
-                             type="button" 
-                             variant="success"
-                             disabled={!calculatedOffer || parseFloat(investmentAmount) <= 0 || isSubmitting}
-                             onClick={handleSubmitOffer}
-                           >
-                            {isSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Send className="w-4 h-4 mr-2"/>}
-                            {isSubmitting ? "Sending..." : "Submit Offer"}
+                 {/* Only show "Make Offer" button if farmer is seeking investment */}
+                 {farmer.is_seeking_investment && (
+                   <Dialog open={isOfferDialogOpen} onOpenChange={setIsOfferDialogOpen}>
+                      <DialogTrigger asChild>
+                           <Button size="lg" className="w-full sm:w-auto">
+                              <DollarSign className="w-5 h-5 mr-2"/>
+                              Make Investment Offer
                            </Button>
-                        </DialogFooter>
-                    </DialogContent>
-                 </Dialog>
+                      </DialogTrigger>
+                      <DialogContent className="sm:max-w-md">
+                          <DialogHeader>
+                            <DialogTitle className="text-2xl">Make an Investment Offer</DialogTitle>
+                            <DialogDescription>
+                              Farm's current value is approx. {formatCurrency(farmMarketValue)}. 
+                              Projected 5-yr value is {formatCurrency(projectedFarmValue)}.
+                            </DialogDescription>
+                          </DialogHeader>
+                          
+                          <div className="space-y-4 py-4">
+                              <div className="space-y-2">
+                                  <Label htmlFor="amount" className="text-base">Investment Amount (₹)</Label>
+                                  <Input
+                                    id="amount"
+                                    type="number"
+                                    placeholder="e.g., 50000"
+                                    className="text-lg h-12"
+                                    value={investmentAmount}
+                                    onChange={(e) => handleAmountChange(e.target.value)}
+                                  />
+                              </div>
+
+                              {calculatedOffer && (
+                                 <Card className="p-4 bg-muted/50 shadow-inner animate-in fade-in duration-300">
+                                     <h4 className="font-semibold mb-3 text-center">Your Offer Details</h4>
+                                     <div className="grid grid-cols-2 gap-3 text-sm">
+                                        <div className="font-medium">Stake Percentage:</div>
+                                        <div className="text-right font-bold text-primary">{calculatedOffer.stake.toFixed(2)}%</div>
+                                        
+                                        <div className="font-medium">Equivalent Land:</div>
+                                        <div className="text-right font-bold">{calculatedOffer.land.toFixed(2)} acres</div>
+                                        
+                                        <div className="font-medium">Est. 5-Yr Return:</div>
+                                        <div className="text-right font-bold text-success">{formatCurrency(calculatedOffer.projectedReturn)}</div>
+                                        
+                                        <div className="font-medium">Est. 5-Yr Profit:</div>
+                                        <div className="text-right font-bold text-success">{formatCurrency(calculatedOffer.projectedProfit)}</div>
+                                     </div>
+                                 </Card>
+                              )}
+                          </div>
+
+                          <DialogFooter className="sm:justify-between gap-2">
+                             <DialogClose asChild>
+                               <Button type="button" variant="outline" disabled={isSubmitting}>Cancel</Button>
+                             </DialogClose>
+                             <Button 
+                               type="button" 
+                               variant="success"
+                               disabled={!calculatedOffer || parseFloat(investmentAmount) <= 0 || isSubmitting}
+                               onClick={handleSubmitOffer}
+                             >
+                              {isSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Send className="w-4 h-4 mr-2"/>}
+                              {isSubmitting ? "Sending..." : "Submit Offer"}
+                             </Button>
+                          </DialogFooter>
+                      </DialogContent>
+                   </Dialog>
+                 )}
               </div>
 
-              {/* --- NEW: Farmer Details Section --- */}
+              {/* Farmer Details Section */}
               <hr className="my-6 border-border/50" />
               <div>
                   <h3 className="text-lg font-semibold mb-4">Farmer Details</h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-5">
-                      {/* Contact Number */}
                       <div className="flex items-start gap-3">
                           <Phone className="w-5 h-5 text-primary mt-1 flex-shrink-0" />
                           <div>
@@ -369,8 +420,6 @@ const FarmerPublicProfile = () => {
                               <p className="font-semibold text-foreground">{farmer.phone || 'Not Provided'}</p>
                           </div>
                       </div>
-                      
-                      {/* Location */}
                       <div className="flex items-start gap-3">
                           <MapPin className="w-5 h-5 text-primary mt-1 flex-shrink-0" />
                           <div>
@@ -378,8 +427,6 @@ const FarmerPublicProfile = () => {
                               <p className="font-semibold text-foreground">{farmer.district}, {farmer.state || 'N/A'}</p>
                           </div>
                       </div>
-
-                      {/* Full Address */}
                       <div className="flex items-start gap-3 sm:col-span-2">
                           <Home className="w-5 h-5 text-primary mt-1 flex-shrink-0" />
                           <div>
@@ -389,8 +436,6 @@ const FarmerPublicProfile = () => {
                       </div>
                   </div>
               </div>
-              {/* --- END: Farmer Details Section --- */}
-
           </Card>
           
           {/* Harvest Records Card */}
@@ -429,6 +474,34 @@ const FarmerPublicProfile = () => {
                  <p className="text-muted-foreground">No cultivation records found for this farmer.</p>
                )}
            </Card>
+
+           {/* --- NEW: Farmer's Progress Posts --- */}
+           <Card className="p-4 sm:p-6 shadow-soft rounded-2xl">
+               <h3 className="text-xl font-bold mb-4">Farmer's Progress Updates</h3>
+               <div className="space-y-4">
+                 {posts.length > 0 ? (
+                   posts.map((post) => (
+                     <Card key={post.id} className="p-4 bg-muted/50 shadow-inner">
+                       <div className="flex items-center gap-3 mb-2">
+                         <Avatar className="w-8 h-8">
+                           <AvatarFallback className="bg-primary/20 text-primary font-semibold">
+                             {post.author_name?.charAt(0) || 'F'}
+                           </AvatarFallback>
+                         </Avatar>
+                         <div>
+                            <p className="font-semibold text-sm">{post.author_name}</p>
+                            <p className="text-xs text-muted-foreground">{post.time}</p>
+                         </div>
+                       </div>
+                       <p className="text-foreground whitespace-pre-wrap">{post.content}</p>
+                     </Card>
+                   ))
+                 ) : (
+                   <p className="text-muted-foreground">This farmer has not posted any updates yet.</p>
+                 )}
+               </div>
+           </Card>
+           {/* --- END: Farmer's Progress Posts --- */}
 
         </div>
       </div>
